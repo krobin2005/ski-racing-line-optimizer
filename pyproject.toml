@@ -1,0 +1,9 @@
+[project]
+name = "skiopt"
+version = "0.1.0"
+description = "2D Giant Slalom racing-line optimizer: gradient vs. evolutionary methods"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

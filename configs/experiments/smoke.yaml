@@ -1,0 +1,21 @@
+# Pipeline smoke test: a gate-less constant-pitch slope, two cheap methods, two seeds.
+# Exercises config loading, evaluator, budget counter, logger and skip-if-done.
+# Real courses arrive with the course generator (days 3-4).
+experiment: smoke
+
+course:
+  kind: constant_pitch
+  length_m: 300
+  pitch_deg: 20
+  x_start: 0.0
+
+policy: open_loop_kappa      # one curvature value per metre; spline policy lands on days 3-5
+
+methods:
+  - name: fall_line           # zero curvature: the straight line, no search
+  - name: random_search
+    population: 256
+    sigma: 0.002             # curvature noise (1/m)
+    budget: 5120             # rollouts
+
+seeds: [0, 1]

@@ -20,22 +20,34 @@ Tested with Python 3.13 and 3.14 (JAX 0.11.2, evosax 0.3.1). Every pinned packag
 
 ## Running
 
-Once code lands:
-
 ```bash
-pytest                                                        # run the tests
-python -m skiopt.run configs/experiments/baseline.yaml        # run an experiment
+pytest                                                   # run the tests (~4 s)
+python -m skiopt.run configs/experiments/smoke.yaml      # pipeline smoke test; add --force to re-run
+python -m skiopt.bench                                   # evaluation speed vs. the < 50 ms / 1,000 target
 ```
 
-Results go to `results/` (git-ignored). Figures and tables are rebuilt from saved results, never by re-running simulations.
+Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest.json`, `progress.csv`, `champion.npz`, `telemetry.csv`. Finished runs are skipped on re-run. Figures and tables are rebuilt from saved results, never by re-running simulations.
+
+### Code map (days 1–2)
+
+| Module | What it does |
+| --- | --- |
+| `skiopt/types.py` | `SimParams`, `State`, `StepOutput`, `Course`, `Gates`, `Summary` (JAX pytrees) |
+| `skiopt/terrain.py` | Terrain protocol + θ(y) pitch profile |
+| `skiopt/dynamics.py` | 2D point mass: curvature clip, lateral load a_net, turning bands, speed update |
+| `skiopt/rollout.py` | Fixed-length `lax.scan` rollout; padding steps after the finish are masked |
+| `skiopt/objectives.py` | `evaluate(params_batch, courses)`; objectives are T until gates and DNF land |
+| `skiopt/policies.py` | Open-loop curvature policy (spline, MLP, coach line to come) |
+| `skiopt/optim/baselines.py` | `fall_line` and `random_search`, to exercise the pipeline |
+| `skiopt/run.py`, `logger.py`, `budget.py`, `config.py` | Runner, result files, rollout-equivalent budget, YAML config |
 
 ## Status
 
 | Step | Plan section | Status |
 | --- | --- | --- |
 | Setup: repo, environment, plan | — | Done |
-| Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Next |
-| Days 3–4: FIS rules, course generator, course plot | §8 | |
+| Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 15 tests pass; 1,000 candidates × 1,200 m in ~12 ms |
+| Days 3–4: FIS rules, course generator, course plot | §8 | Next |
 | Days 5–6: hazard model, spline optimizers | §8 | |
 | Day 6 gate: baseline runs end to end | §8 | |
 | Days 7–8: coach line, deceptive course, hybrid | §8 | |

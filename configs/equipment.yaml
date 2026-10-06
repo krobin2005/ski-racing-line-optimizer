@@ -1,0 +1,10 @@
+# Fixed equipment setup (PLAN.md §2). Recorded only: copied into every run's manifest.json,
+# never read by the simulator. The 2D turning bands come from the 30 m sidecut via configs/base.yaml.
+equipment:
+  ski: Völkl Racetiger GS
+  ski_length_cm: 193
+  sidecut_radius_m: 30
+  plate: piston plate
+  binding_din: 30
+  stack_height_mm: {heel: 49, toe: 47}
+  boot: Lange ZB 25.5

@@ -1,0 +1,41 @@
+# Base configuration. Experiment files in configs/experiments/ override any key here.
+# Values marked "placeholder" are tuned at the day-6 realism check (PLAN.md §4).
+
+sim:
+  dy: 1.0                 # spatial step down the fall line (m)
+  v0: 5.0                 # start speed (m/s)
+  psi_max_deg: 80.0       # heading is smoothly limited to |psi| < psi_max
+  v_floor: 0.5            # numerical floor on speed (m/s); far below v_stop, only prevents division by zero
+
+physics:
+  g: 9.81                 # m/s^2
+  mass: 85.0              # kg (recorded; c_d below already divides by it)
+  cda: 0.3                # drag area, GS turning posture (m^2)
+  rho: 1.0                # air density at altitude (kg/m^3)
+  mu: 0.04                # ski-snow friction coefficient
+  k_turn: 0.03            # carving loss per unit |a_net| (placeholder)
+  k_tight: 0.5            # loss coefficient for turns tighter than r_typical_lo (placeholder)
+  k_skid: 3.0             # loss coefficient for turns tighter than r_skid (placeholder)
+  beta_kappa: 2000.0      # softplus sharpness on curvature (1/(1/m)); higher = sharper band edges
+  terms:                  # on/off switches for the analytic tests and ablations
+    gravity: true
+    friction: true
+    drag: true
+    turn: true            # carving loss k_turn*|a_net|
+    tight: true
+    skid: true
+
+skier:                    # turning bands (PLAN.md §4); R = R_sc * cos(edge), R_sc = 30 m
+  r_typical_lo: 18.0
+  r_typical_hi: 22.0
+  r_skid: 14.0
+  r_floor: 12.0
+
+budget:
+  spline_rollouts: 200000
+  controller_rollouts: 2000000
+  grad_step_cost: 3.0     # rollout-equivalents per gradient step (re-measured when Adam lands)
+
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+results_dir: results
