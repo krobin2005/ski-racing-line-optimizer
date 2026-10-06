@@ -1,12 +1,12 @@
-# Ski Racing-Line Optimizer: Implementation Plan v2
+# Ski Racing-Line Optimizer: Implementation Plan v2.1
 
-**Status:** approved by Kyle and Liam, October 6, 2026. This file is the official copy of the plan. The Google Doc version is frozen; change the plan here, in a commit.
+**Status:** v2 approved by Kyle and Liam, October 6, 2026; v2.1 revisions requested by Liam the same day (see [What changed in v2.1](#what-changed-in-v21)). This file is the official copy of the plan. The Google Doc version is frozen; change the plan here, in a commit.
 
 **Working arrangement:** for now we work through tracks A and B together rather than splitting them. The track labels below still show which parts depend on each other.
 
 ## Contents
 
-0. [What changed from v1](#what-changed-from-v1)
+0. [What changed from v1](#what-changed-from-v1) and [in v2.1](#what-changed-in-v21)
 1. [Context and project decisions](#1-context-and-project-decisions)
 2. [FIS rules and equipment](#2-fis-rules-and-equipment)
 3. [The optimization problem](#3-the-optimization-problem)
@@ -43,6 +43,18 @@ v2 fits the project into about two weeks. It fixes v1's internal contradictions 
 | MLP optimizer | Full CMA-ES on ~560 weights | sep-CMA-ES and OpenAI-ES; full CMA-ES only on splines |
 | Logging | Parquet, checkpoints, resume, live watcher, LaTeX, presentation mode | JSON + CSV + NPZ, skip-if-done, one report script |
 | Extras | Monte Carlo, risk sweep, difficulty sweep, robustness, ablations core | Moved to stretch; coach-line baseline added to core |
+
+### What changed in v2.1
+
+| Area | v2 | v2.1 |
+| --- | --- | --- |
+| Boot lifter and stack height | Counted in the bearing-surface height; used in 3D | Omitted from the model. A 2D point mass has no edge angle or boot-out, so neither can change turn radius. Stack height is kept as a recorded fact only (§2). |
+| DNF limits | Fixed hazard terms and hard limits | Every hazard term and every hard limit has its own on/off switch and tunable constants in `configs/risk.yaml` (§5) |
+| Tuning risk | Calibrate c_* once | A `risk_map.py` script plots DNF risk for a single turn across radius × speed, so we can see exactly what the current settings do before running anything (§5) |
+| Hard limits in the smooth objective | Only the piste edge had a smooth wall | Every enabled hard limit (G_max, v_stop, piste) gets a steep softplus wall, so gradient methods see it coming |
+| Run-time estimate | "A spline run takes about 10 s" | 10 s holds for population methods only; Adam's sequential steps take minutes (§10) |
+| Milestone labels | Leftover M0/M2 references | Replaced with schedule days |
+| Dependencies | Direct packages pinned | Plus `requirements-lock.txt`, a full `pip freeze`, so transitive packages (flax etc.) are pinned too |
 
 ## 1. Context and project decisions
 
@@ -88,9 +100,9 @@ The setup is a constant, identical in every run, stored in one read-only block i
 | Item | Value | Used in 2D? |
 | --- | --- | --- |
 | Ski | Völkl Racetiger GS, 193 cm, 30 m sidecut | Sidecut sets the turning bands (§4) |
-| Plate + lifter + binding | Piston plate, 5 mm lifter between plate and binding, 30 DIN | Recorded; used in 3D for boot-out |
-| Stack height | 49 mm heel, 47 mm toe (lifter included) | Recorded; used in 3D |
-| Boot | Lange ZB, 25.5, unmodified sole | Recorded only |
+| Plate + binding | Piston plate, 30 DIN | Recorded only |
+| Stack height | 49 mm heel, 47 mm toe | Recorded only |
+| Boot | Lange ZB, 25.5 | Recorded only |
 
 FIS legality, checked once by hand against the 2024/25 equipment specifications rather than in code:
 
@@ -98,10 +110,9 @@ FIS legality, checked once by hand against the 2024/25 equipment specifications 
 | --- | --- | --- | --- |
 | GS ski length, men, COC level | ≥ 193 cm | 193 cm | Legal, at the limit |
 | GS sidecut radius, men | ≥ 30 m | 30 m | Legal, at the limit |
-| Bearing surface height h_BS (plate, lifter, binding) | ≤ 50 mm | 49 mm | Legal, 1 mm margin |
-| Boot sole thickness t_B | ≤ 43 mm | stock Lange ZB sole, no lifter on the boot | Legal for a stock race boot |
+| Bearing surface height h_BS (ski base to boot sole) | ≤ 50 mm | 49 mm | Legal, 1 mm margin |
 
-The lifter is counted only once, inside h_BS, because it sits between the plate and the binding. That removes v1's contradiction and the need to waive the boot-sole rule.
+**Boot lifter: omitted (v2.1).** Lifters and stack height change edge angle, leverage and the point where the boot touches the snow. A 2D point mass has none of those. Its turn radius comes only from the 30 m sidecut through the turning bands (§4), so the lifter cannot change any result. It is left out of the model and the FIS check rather than modelled half-way. If the 3D stage adds edge angle and boot-out, measure the real stack and lifter then.
 
 ## 3. The optimization problem
 
@@ -166,7 +177,7 @@ Mass, drag and friction use published values instead of made-up ones. Every numb
 | c_d = ½ρCdA / m | ≈ 0.0018 1/m |
 | Ski–snow friction μ | 0.04 |
 
-Realism check, run once after M2: on a standard generated course, a sensible line should take about 60–80 s at a mean speed of about 55–70 km/h. If it doesn't, tune k_turn before anything else.
+Realism check, run once at the day-6 gate: on a standard generated course, a sensible line should take about 60–80 s at a mean speed of about 55–70 km/h. If it doesn't, tune k_turn before anything else.
 
 Each physics and risk term has an on/off switch (`physics.terms.drag`, `risk.enabled`, …) for the analytic tests.
 
@@ -184,12 +195,60 @@ P_finish = exp(−Σ (h_load + h_tight + h_late + h_slow) · Δs)
 Hard DNF: G > G_max, v < v_stop, a missed gate, or leaving the piste
 ```
 
+Every term and hard limit above can be switched off and retuned in `configs/risk.yaml` (see "Switches and tuning" below).
+
 - **G limits.** World Cup GS measurements (Gilgien et al.) show average ground reaction forces above 1.5× body weight and peaks up to about 3.8×. v2 sets **G_safe = 3.0 g** and **G_max = 4.0 g**.
 - **Why G_safe went up.** v1 claimed 70 km/h on a 20 m arc is "1.9 g, comfortably below 2.5 g". That is lateral load only. Total G on a 20° pitch is 2.1 g at the fall line and 2.4 g after it. At 80 km/h it is 2.7–2.9 g, already over v1's 2.5 g limit, so the typical turning band was itself a crash risk. With 3.0 g, the 18–22 m band is low-risk across the 60–80 km/h range, and risk rises for tight turns at top speed (80 km/h on 18 m after the fall line ≈ 3.2 g).
 - **Late line.** κ_req is the curvature of the arc tangent to the current heading that reaches the nearest point of the next gate's pass window: κ_req = 2·e⊥ / d². It is closed-form and differentiable.
 - **Too slow.** v_slow ≈ 35 km/h; below v_stop the run is a DNF.
 - **Numerics.** Σh·Δs is accumulated in log space, and P_DNF is computed with `-expm1` so small risks don't vanish in float32.
-- **Calibration target.** A sensible line on a standard course: a few percent DNF. An aggressive line: roughly 10–30%. Calibrate c_* once after M2.
+- **Calibration target.** A sensible line on a standard course: a few percent DNF. An aggressive line: roughly 10–30%. These are starting targets; expect to tune (below).
+
+### Switches and tuning (v2.1)
+
+The DNF limits will need fine-tuning, so none of them are hard-coded. Every hazard term and every hard limit lives in `configs/risk.yaml`, has its own `enabled` switch, and exposes the constants that set how risky a turn of a given radius and speed is. Experiment configs may override any of these values, and the values used are copied into each run's `manifest.json`, so every result records the risk settings it was produced with.
+
+```yaml
+risk:
+  enabled: true              # master switch: false → P_DNF = 0 from hazards (hard limits below still apply if enabled)
+  beta: 4.0                  # softplus sharpness for all hazard terms (higher = closer to a hard threshold)
+  terms:
+    load:  {enabled: true, c: 0.002, G_safe: 3.0}     # risk per metre per g above G_safe
+    tight: {enabled: true, c: 0.002, r_skid: 14.0}    # risk per metre per (1/m) of curvature above 1/r_skid
+    late:  {enabled: true, c: 0.002}                  # risk per metre per (1/m) of κ_req above 1/r_skid
+    slow:  {enabled: true, c: 0.001, v_slow_kmh: 35}  # risk per metre per m/s below v_slow
+  hard:                      # exact DNF in the hard score; steep softplus wall in the smooth objective
+    g_max:     {enabled: true, value: 4.0}
+    v_stop:    {enabled: true, value_kmh: 10}
+    piste:     {enabled: true, width_m: 40}
+    gate_miss: {enabled: true}                        # disable only for the analytic tests
+  wall: {weight: 100.0, beta: 20.0}                   # smooth-objective walls for enabled hard limits
+```
+
+The `c` values above are placeholders, not calibrated numbers.
+
+How the knobs map to "how risky is this turn":
+
+| To change… | Turn this knob |
+| --- | --- |
+| Where fast, tight turns start to get risky | `load.G_safe`; G combines speed and radius through a_net = κv² + g sinθ sinψ |
+| How quickly that risk grows past the threshold | `load.c`, and `beta` for how sharp the onset is |
+| Risk from tight radius regardless of speed | `tight.r_skid` and `tight.c` |
+| Risk from a late, too-round line | `late.c` |
+| Risk from going too slow | `slow.v_slow_kmh` and `slow.c` |
+| Whether a limit can end the run outright | `hard.<limit>.enabled` and its value |
+
+**Risk map.** `python -m skiopt.analysis.risk_map [--config configs/risk.yaml]` takes a few seconds and plots, for a single 90° turn on a reference pitch:
+
+- the DNF probability for each turn radius (10–30 m) and speed (40–90 km/h), with each hazard term as its own panel
+- contours at 1%, 5% and 20%, and the 18–22 m × 60–80 km/h typical band outlined
+
+The turn's DNF probability is P = 1 − exp(−∫h ds) over the arc. Tuning means editing `risk.yaml`, re-running the map, and checking that the typical band stays low-risk while tight, fast turns become risky. That check comes before any optimizer run.
+
+**Toggle tests.** These are in §13:
+- Disabling a term makes its contribution exactly zero.
+- With `risk.enabled: false` and all hard limits off, P_DNF = 0 for every line.
+- Re-enabling the settings restores the original numbers.
 
 ### Gates
 
@@ -211,7 +270,7 @@ E[score] = P_finish · T + P_DNF · T_DNF
 
 T_DNF = 1.5× a reference winning time. With T around 70 s, each extra 1% of DNF risk costs about 0.35 s, so a line must gain more than that to justify the risk. The risk-appetite sweep over T_DNF is a stretch item.
 
-- **Smooth objective** (gradient methods, and the CMA-ES smooth-loss arm): E[score] + λ·Σ softplus(gate-miss distance)², with λ annealed upward.
+- **Smooth objective** (gradient methods, and the CMA-ES smooth-loss arm): E[score] + λ·Σ softplus(gate-miss distance)², with λ annealed upward, plus a steep softplus wall for each enabled hard limit (G_max, v_stop, piste). Without the walls, gradient methods get no warning as they approach a limit that ends the run.
 - **Hard score** (all reporting, and evolutionary fitness): a run that misses a gate scores DQ_BASE + Σ miss distance, so evolution still sees progress among disqualified runs. Runs that pass every gate score E[score].
 
 ## 6. Policies
@@ -230,9 +289,11 @@ About 20 modules. Each file is tagged with its track (§8): [A] simulator and co
 
 ```
 ski-racing-line-optimizer/
-  requirements.txt            # pinned: jax[cpu], optax, evosax, numpy, scipy, matplotlib, pyyaml, pandas, pytest
+  requirements.txt            # pinned direct deps: jax[cpu], optax, evosax, numpy, scipy, matplotlib, pyyaml, pandas, pytest
+  requirements-lock.txt       # full pip freeze incl. transitive deps (flax etc.), for exact installs
   configs/
-    base.yaml                 # physics constants, Δy, skier bands, risk constants, budgets, seeds
+    base.yaml                 # physics constants, Δy, skier bands, budgets, seeds
+    risk.yaml                 # hazard terms + hard limits, each with an on/off switch (§5)
     fis_gs.yaml               # GS course rules + ICR article numbers
     equipment.yaml            # fixed setup, recorded only
     experiments/*.yaml        # one per experiment: methods, courses, budget, seeds
@@ -240,7 +301,7 @@ ski-racing-line-optimizer/
     types.py                  # State, Course, Gate, Params pytrees                      [A]
     terrain.py                # Terrain protocol + θ(y) profile                          [A]
     dynamics.py               # Dynamics protocol + 2D point mass, turn costs            [A]
-    hazard.py                 # 4 hazard terms, hard DNFs, log-space P_finish           [A]
+    hazard.py                 # 4 hazard terms, hard DNFs, per-term switches, log-space P_finish [A]
     courses.py                # FIS rules, validate(), generator, hand-built library     [A]
     rollout.py                # lax.scan rollout, vmap over params and courses           [A]
     objectives.py             # E[score], smooth_loss, hard_score                        [A]
@@ -253,6 +314,7 @@ ski-racing-line-optimizer/
     logger.py                 # manifest.json, progress.csv, champion.npz, skip-if-done  [B]
     analysis/plots.py         # course + line plot, D–v̄ figure, convergence             [A+B]
     analysis/summarize.py     # tables, Mann–Whitney + A12 → SUMMARY.md                  [B]
+    analysis/risk_map.py      # DNF risk of one turn over radius × speed, for tuning     [A]
   tests/
   results/                    # git-ignored
   notebooks/demo.ipynb        # loads saved results only
@@ -268,7 +330,7 @@ The two tracks meet at one interface, `evaluate(params_batch, courses)`. We're c
 | --- | --- | --- |
 | 1–2 | Core sim + physics tests | Evaluator stub, runner, logger |
 | 3–4 | FIS rules, generator, course plot | Spline: Adam, CMA-ES, GA (days 3–5) |
-| 5–6 | Hazard model + calibration | Hybrid, smooth-loss arm, summary (days 6–8) |
+| 5–6 | Hazard model with switches, risk map, calibration | Hybrid, smooth-loss arm, summary (days 6–8) |
 | **End of day 6** | **Gate: baseline runs end to end on the easy course** | |
 | 7–8 | Coach line + deceptive course | (continues) |
 | **End of day 8** | **Gate: spline results frozen** | |
@@ -307,7 +369,7 @@ Every method optimizes a flat parameter vector through one batched evaluator, `e
 
 Full CMA-ES is dropped for the MLP because learning a 560 × 560 covariance takes on the order of n² ≈ 300k evaluations, which is at or past the budget.
 
-- **Equal budgets** in rollout-equivalents: one forward rollout = 1, one gradient step ≈ 3 (measured once in M2). Splines: 2×10⁵ per course. Controller: 2×10⁶ (controller × course) rollouts. Wall-clock is reported too.
+- **Equal budgets** in rollout-equivalents: one forward rollout = 1, one gradient step ≈ 3 (measured once when Adam first runs, days 3–5). Splines: 2×10⁵ per course. Controller: 2×10⁶ (controller × course) rollouts. Wall-clock is reported too.
 - **Equal starts:** a straight fall line plus noise for splines, Gaussian weights for the MLP.
 - **Equal tuning:** a small, equal hyperparameter grid per method, tuned only on a tuning course that is never tested.
 - **Seeds:** 10 per method and course. Within a generation every candidate sees the same course batch.
@@ -318,7 +380,7 @@ Metrics per method: T, D, v̄, analytic P_DNF, E[score], DNF cause shares, disqu
 
 ## 10. Logging and summary
 
-Each run saves everything once, and every figure and table is rebuilt from saved files. Runs are cheap, so v2 drops checkpoints, resume logic, Parquet, the live watcher, LaTeX tables and the presentation loader. At the M0 target of under 50 ms per 1,000 candidates, a spline run takes about 10 s and a controller run about 2 minutes. A killed run is simply re-run.
+Each run saves everything once, and every figure and table is rebuilt from saved files. Runs are cheap, so v2 drops checkpoints, resume logic, Parquet, the live watcher, LaTeX tables and the presentation loader. At the day-2 target of under 50 ms per 1,000 candidates, a population-method spline run (CMA-ES, GA) takes about 10 s and a controller run about 2 minutes. Adam is slower in wall-clock: its ~66k gradient steps run one after another, so a spline run takes a few minutes. That is still short enough that a killed run is simply re-run.
 
 `results/<experiment>/<method>/seed_<n>/` holds:
 
@@ -345,11 +407,11 @@ Each run saves everything once, and every figure and table is rebuilt from saved
 | Gate penalty flat or non-differentiable | Softplus miss-distance for gradients, graded DQ for evolution, λ annealed upward |
 | Gradient methods stuck in local optima | Part of the finding; random-restart Adam at equal budget |
 | Exploding gradients over ~1,000–1,500 scan steps | Gradient clipping; truncated BPTT over gate-to-gate segments as fallback |
-| DNF model dominates (all lines too safe or all crash) | Calibrate c_* after M2 against the target DNF rates |
+| DNF model dominates (all lines too safe or all crash) | Tune `risk.yaml` with the risk map before optimizer runs; calibrate at the day-6 gate against the target DNF rates; switch individual terms off to find the culprit |
 | Hazard vanishes in float32 | Log-space accumulation, `-expm1` for P_DNF |
 | Deceptive course isn't deceptive | Check first: random-restart Adam must find ≥ 2 optima with a measurable time gap |
-| Slow evaluation | jit + vmap; target < 50 ms per 1,000 candidates, measured in M0 |
-| evosax API changes | Versions pinned in `requirements.txt`; thin wrappers so the `cma` package can be swapped in |
+| Slow evaluation | jit + vmap; target < 50 ms per 1,000 candidates, measured on day 2 |
+| evosax API changes | Versions pinned in `requirements.txt`, full tree in `requirements-lock.txt`; thin wrappers so the `cma` package can be swapped in |
 | FIS values out of date | Check the 2026 ICR edition once by hand |
 
 **Deceptive course.** A run of open, low-offset gates on a steep pitch, then a rhythm change into a large-offset gate. The tight, greedy line through the early gates carries too much speed into that gate and pays a big skid loss. The faster line starts the turn earlier and higher, giving up a little time early. Gradient descent from the fall line is expected to settle on the greedy line.
@@ -361,7 +423,7 @@ The 2D interfaces stay 3D-ready without building anything 3D now.
 - **Terrain protocol:** `height / pitch / normal(x, y)`. 2D ignores x; 3D adds a height field and leaves the dynamics untouched.
 - **Dynamics protocol:** `step(state, control, terrain, params)` + a `control_spec`. Policies output values in [−1, 1]^d and the dynamics scales them. 2D: d = 1 (curvature). 3D: d = 2 (edge angle, lean).
 - **One carving formula everywhere:** R = R_sc·cos(edge), so κ = 1 / (R_sc·cos(edge)). v1's κ ≈ sin(edge)/R_sc is dropped because it contradicts the 2D bands. The edge angles logged in 2D carry straight into 3D.
-- **Equipment in 3D:** the 49/47 mm stack (lifter included) sets the boot-out edge limit and edge leverage; the 2 mm ramp sets fore-aft stance.
+- **Equipment in 3D:** stack height and any lifter would set the boot-out edge limit and edge leverage, and the heel-to-toe ramp would set fore-aft stance. They are omitted in 2D (§2); measure them when 3D starts.
 - **Opaque state:** rollout, objectives and optimizers read only a fixed `StepOutput` (dt, ds, gate signals, hazard terms, hard DNF, telemetry), never x, ψ or v directly.
 - **Gate crossing** = crossing a gate plane: y = y_g in 2D, a vertical plane through the poles in 3D.
 
@@ -383,6 +445,8 @@ The tests are trimmed to the ones that catch real bugs or give a report figure.
 - Each hazard term rises monotonically with its driver (G, |κ|, κ_req, v below v_slow).
 - G > G_max, v < v_stop, a missed gate and leaving the piste each give P_DNF ≈ 1.
 - A line that stays straight too long before a gate gets rising κ_req and h_late before it misses.
+- Switches: disabling one term makes its contribution exactly zero and leaves the others unchanged. With `risk.enabled: false` and every hard limit off, P_DNF = 0 for any line. Disabling an enabled hard limit also removes its smooth-objective wall.
+- The risk map runs from `risk.yaml` alone, and its 18–22 m × 60–80 km/h band matches the calibration target.
 
 **Courses** (track A)
 
@@ -402,7 +466,7 @@ The tests are trimmed to the ones that catch real bugs or give a report figure.
 - **Cycloid:** turn costs and risk off, tiny v₀, small lateral offset. Adam on the spline matches the analytic brachistochrone time within about 1%.
 - **No gates:** with risk switched off, every method converges to the straight fall line.
 
-**Realism** (after M2): a turn-radius histogram with the 18–22 m band shaded, plus run time and mean speed against the 60–80 s and 55–70 km/h targets.
+**Realism** (at the day-6 gate): a turn-radius histogram with the 18–22 m band shaded, plus run time and mean speed against the 60–80 s and 55–70 km/h targets.
 
 ### End-to-end check
 

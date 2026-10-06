@@ -11,10 +11,12 @@ Evolutionary Computing independent project, DCS 340, Bates College. Kyle and Lia
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-lock.txt   # exact versions of everything, incl. transitive deps
 ```
 
-Tested with Python 3.14 and the versions pinned in `requirements.txt` (JAX 0.11.2, evosax 0.3.1).
+`requirements.txt` lists the direct dependencies; `requirements-lock.txt` is a full `pip freeze` of a clean install of it. After changing `requirements.txt`, regenerate the lock file in a fresh venv with `pip install -r requirements.txt && pip freeze > requirements-lock.txt`.
+
+Tested with Python 3.13 and 3.14 (JAX 0.11.2, evosax 0.3.1). Every pinned package supports Python 3.12 or newer.
 
 ## Running
 
