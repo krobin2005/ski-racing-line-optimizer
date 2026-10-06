@@ -32,6 +32,11 @@ skier:                    # turning bands (PLAN.md §4); R = R_sc * cos(edge), R
   r_skid: 14.0
   r_floor: 12.0
 
+objective:                # PLAN.md §5; gate clearance comes from configs/fis_gs.yaml (model.body_clearance_m)
+  dq_base: 1000.0         # hard score of a run that misses any gate: dq_base + total miss distance (m)
+  lam_gate: 1.0           # smooth loss: T + lam_gate * sum softplus(miss)^2  (s/m^2); annealed upward by gradient methods
+  beta_miss: 5.0          # softplus sharpness on miss distance (1/m)
+
 budget:
   spline_rollouts: 200000
   controller_rollouts: 2000000

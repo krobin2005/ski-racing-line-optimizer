@@ -92,6 +92,8 @@ How these enter the model:
 - **Variety:** the validator checks the spread of gate distances, so the generator can't produce a uniform rhythm.
 - **Gate pass:** x(y_g) must lie between the turning pole plus a 0.4 m body clearance and the outside pole (§5).
 - **Grid:** gate y-positions are rounded to whole multiples of Δy, so the gate check is exact.
+- **Skiable turns (model rule, added on days 3–4):** a FIS-legal set can still demand turns tighter than the 12 m floor, for example 10 m offsets at 20 m spacing. Two successive turning gates a fall-line distance L apart, with lateral swing w (pole offset plus the body clearance on both sides), need a turn radius of about R = (L² + w²) / 4w. The validator rejects any pair needing under 13 m. The generator works the other way round: it draws a target radius per interval (mean 20 m, sd 3 m, clipped to 14.5–28 m) and sets the offset from it. Generated courses come out at a median implied radius of about 22 m, 10th–90th percentile 17–27 m.
+- **Generator output:** 1,000 seeds all validate. Courses are 0.7–1.5 km long, with a 280–420 m vertical drop and a median of 44 gates. Delay gates split a long interval and leave at least 16 m on either side. Settings are in `configs/fis_gs.yaml`.
 
 ### Equipment (fixed, recorded once)
 

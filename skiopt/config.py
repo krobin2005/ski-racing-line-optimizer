@@ -29,6 +29,7 @@ def load_yaml(path: str | Path) -> dict:
 
 def load_config(experiment_path: str | Path | None = None, config_dir: Path = CONFIG_DIR) -> dict:
     cfg = load_yaml(config_dir / "base.yaml")
+    cfg["fis"] = load_yaml(config_dir / "fis_gs.yaml")  # in the config so its values reach the run hash
     if experiment_path is not None:
         cfg = deep_merge(cfg, load_yaml(experiment_path))
     return cfg

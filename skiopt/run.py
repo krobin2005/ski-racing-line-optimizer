@@ -16,7 +16,8 @@ from skiopt import courses as course_lib
 from skiopt.budget import Budget
 from skiopt.config import load_config, load_equipment
 from skiopt.logger import RunLogger, run_dir, run_hash, run_status
-from skiopt.objectives import make_evaluator, make_trajectory, stack_courses
+from skiopt.objectives import score as score_run
+from skiopt.objectives import ObjParams, make_evaluator, make_trajectory, stack_courses
 from skiopt.optim.baselines import METHODS
 from skiopt.policies import make_policy
 from skiopt.rollout import n_steps_for
@@ -34,7 +35,8 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
     courses = stack_courses([course])
     n_steps = n_steps_for(float(course.length), p.dy)
     policy = make_policy(cfg["policy"], n_steps)
-    evaluate = make_evaluator(policy, p, n_steps)
+    obj = ObjParams.from_config(cfg)
+    evaluate = make_evaluator(policy, p, n_steps, obj)
     trajectory = make_trajectory(policy, p, n_steps)
 
     report = []
@@ -59,10 +61,11 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
             summary, traj = trajectory(best, course)
             log.champion(best, history)
             log.telemetry(traj)
+            gates_missed = int(score_run(summary, course, obj).n_missed)
             log.finish(best_score=score, T=summary.T, D=summary.D, v_mean=summary.v_mean,
-                       max_G=summary.max_G, evals=budget.used)
+                       max_G=summary.max_G, gates_missed=gates_missed, evals=budget.used)
             print(f"done  {name:16s} seed {seed}  T={float(summary.T):.3f} s  "
-                  f"v_mean={float(summary.v_mean) * 3.6:.1f} km/h  evals={budget.used:.0f}  "
+                  f"v_mean={float(summary.v_mean) * 3.6:.1f} km/h  missed={gates_missed}  evals={budget.used:.0f}  "
                   f"{budget.wall_clock:.1f} s")
             report.append({"method": name, "seed": seed, "skipped": False, "score": score})
     return report

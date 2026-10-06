@@ -62,5 +62,8 @@ def rollout(policy: PolicyFn, params, course: Course, p: SimParams, n_steps: int
     T = jnp.sum(traj.dt)
     D = jnp.sum(traj.ds)
     G = jnp.where(traj.active > 0, traj.telemetry.G, 0.0)
-    summary = Summary(T=T, D=D, v_mean=D / T, v_end=final.v, max_G=jnp.max(G))
+    # Telemetry x at step k is the position at y = k * dy, so x at a gate line is a lookup.
+    gate_idx = jnp.clip(jnp.round(course.gates.y / p.dy).astype(jnp.int32), 0, n_steps - 1)
+    summary = Summary(T=T, D=D, v_mean=D / T, v_end=final.v, max_G=jnp.max(G),
+                      x_gates=traj.telemetry.x[gate_idx])
     return summary, traj

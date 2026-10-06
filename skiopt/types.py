@@ -99,6 +99,7 @@ class Gates(NamedTuple):
     x_pole: jnp.ndarray  # turning-pole x (m)
     side: jnp.ndarray    # +1: pass on the +x side of the pole, -1: on the -x side
     width: jnp.ndarray   # 4-8 m (ICR 901.2.3)
+    valid: jnp.ndarray   # 1.0 for real gates, 0.0 for padding (courses stacked to equal gate counts)
 
 
 class ProfileTerrain(NamedTuple):
@@ -125,3 +126,4 @@ class Summary(NamedTuple):
     v_mean: jnp.ndarray
     v_end: jnp.ndarray
     max_G: jnp.ndarray
+    x_gates: jnp.ndarray  # x at each gate line y_g (gates sit on the dy grid, so this is exact)

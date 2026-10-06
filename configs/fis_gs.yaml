@@ -1,0 +1,47 @@
+# FIS Giant Slalom course-setting rules expressible in 2D (PLAN.md §2).
+# Source: ICR Book IV, Edition July 2025. Check articles 901-903 against the July 2026 edition by hand.
+icr_edition: "ICR Book IV, July 2025"
+
+rules:
+  vertical_drop_m:                  # ICR 901.1.1 (men), 901.1.2 (women)
+    men: [250, 450]
+    women: [250, 400]
+  gate_width_m: [4.0, 8.0]          # ICR 901.2.3
+  min_turning_pole_distance_m: 10.0 # ICR 901.2.3, nearest turning poles of successive gates
+  direction_changes_pct_vd: [11, 15] # ICR 901.2.4, % of vertical drop in metres, rounded
+  piste_width_m: 40.0               # ICR 902.1, "approximately 40 m"
+  colours: [red, blue]              # ICR 901.2.2, alternating on every gate
+
+  # ICR 903.1.3 asks for "a variety of long, medium and short turns". Our operationalization:
+  # the spread of successive turning-pole distances, (p90 - p10) / median, must reach this value.
+  min_distance_spread: 0.20
+
+model:
+  body_clearance_m: 0.4             # the point mass must pass at least this far outside the turning pole
+  finish_margin_m: 25.0             # last gate to finish line, minimum (not an ICR number)
+  first_gate_min_y_m: 15.0          # start to first gate, minimum (not an ICR number)
+  min_implied_radius_m: 13.0        # every pair of successive turning gates must allow a turn at least
+                                    # this round; tighter sets cannot be skied above the 12 m floor
+
+generator:                          # stylized choices; every generated course must pass validate()
+  sex: men
+  vertical_drop_m: [280, 420]       # sampled inside the ICR range, away from its edges
+  pitch_deg: [14, 30]               # range of the pitch profile
+  max_length_m: 1500                # reject longer courses; real GS runs are about 1-1.5 km
+  pitch_knot_spacing_m: [80, 200]
+  first_gate_y_m: [20, 35]
+  sections: [3, 5]                  # rhythm sections per course
+  section_spacing_m:                # gate-to-gate distance down the fall line, by rhythm
+    short: [17, 21]
+    medium: [22, 27]
+    long: [28, 34]
+  # Lateral offsets follow from a target turn radius per gate interval (normal: mean, sd, clipped
+  # to lo..hi), so the line a skier must carve stays near the typical 18-22 m band.
+  turn_radius_m: [20.0, 3.0, 14.5, 28.0]
+  line_margin_m: 0.3                # line passes this far beyond the body clearance when sizing offsets
+  min_offset_m: 2.0
+  delay_gates: [0, 2]               # gates passed on the same side as the previous one
+  delay_spacing_m: [36, 46]         # turning-gate interval that a delay gate splits in two
+  delay_pole_inset_m: [0.5, 2.0]    # how far the delay pole stands inside the skier's traverse
+  gate_width_m: [6.0, 8.0]          # GS panels are usually set wide
+  max_attempts: 200

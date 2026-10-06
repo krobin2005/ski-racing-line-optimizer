@@ -24,11 +24,12 @@ Tested with Python 3.13 and 3.14 (JAX 0.11.2, evosax 0.3.1). Every pinned packag
 pytest                                                   # run the tests (~4 s)
 python -m skiopt.run configs/experiments/smoke.yaml      # pipeline smoke test; add --force to re-run
 python -m skiopt.bench                                   # evaluation speed vs. the < 50 ms / 1,000 target
+python -m skiopt.analysis.plots --generated 7 --out figures/gen_7.png   # plot a course (or --library easy, --run <dir>)
 ```
 
 Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest.json`, `progress.csv`, `champion.npz`, `telemetry.csv`. Finished runs are skipped on re-run. Figures and tables are rebuilt from saved results, never by re-running simulations.
 
-### Code map (days 1–2)
+### Code map
 
 | Module | What it does |
 | --- | --- |
@@ -36,7 +37,9 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | `skiopt/terrain.py` | Terrain protocol + θ(y) pitch profile |
 | `skiopt/dynamics.py` | 2D point mass: curvature clip, lateral load a_net, turning bands, speed update |
 | `skiopt/rollout.py` | Fixed-length `lax.scan` rollout; padding steps after the finish are masked |
-| `skiopt/objectives.py` | `evaluate(params_batch, courses)`; objectives are T until gates and DNF land |
+| `skiopt/courses.py` | `CourseSpec`, FIS validator, course generator, `easy` library course, padding to stack courses |
+| `skiopt/objectives.py` | `evaluate(params_batch, courses)`; gate check (DQ in the hard score, softplus penalty in the smooth loss); E[score] = T until the DNF model lands |
+| `skiopt/analysis/plots.py` | Course plot: gates, piste, start/finish, line coloured by speed, pitch profile |
 | `skiopt/policies.py` | Open-loop curvature policy (spline, MLP, coach line to come) |
 | `skiopt/optim/baselines.py` | `fall_line` and `random_search`, to exercise the pipeline |
 | `skiopt/run.py`, `logger.py`, `budget.py`, `config.py` | Runner, result files, rollout-equivalent budget, YAML config |
@@ -47,8 +50,8 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | --- | --- | --- |
 | Setup: repo, environment, plan | — | Done |
 | Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 24 tests pass; 1,000 candidates × 1,200 m in ~10 ms |
-| Days 3–4: FIS rules, course generator, course plot | §8 | Next |
-| Days 5–6: hazard model, spline optimizers | §8 | |
+| Days 3–4: FIS rules, course generator, course plot | §8 | Done: 1,000 generated courses validate; 43 tests pass |
+| Days 5–6: hazard model, spline optimizers | §8 | Next |
 | Day 6 gate: baseline runs end to end | §8 | |
 | Days 7–8: coach line, deceptive course, hybrid | §8 | |
 | Days 9–11: neuroevolution | §8 | |
