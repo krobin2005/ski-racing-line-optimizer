@@ -15,6 +15,7 @@ class SimParams(NamedTuple):
     dy: float
     v0: float
     psi_max: float
+    psi_knee: float     # heading limit is exact below this (rad), soft between it and psi_max
     v_floor: float
     g: float
     mu: float
@@ -41,6 +42,7 @@ class SimParams(NamedTuple):
             dy=float(sim["dy"]),
             v0=float(sim["v0"]),
             psi_max=math.radians(float(sim["psi_max_deg"])),
+            psi_knee=math.radians(float(sim["psi_knee_deg"])),
             v_floor=float(sim["v_floor"]),
             g=float(phys["g"]),
             mu=float(phys["mu"]),

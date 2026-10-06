@@ -46,7 +46,7 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | Step | Plan section | Status |
 | --- | --- | --- |
 | Setup: repo, environment, plan | — | Done |
-| Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 15 tests pass; 1,000 candidates × 1,200 m in ~12 ms |
+| Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 24 tests pass; 1,000 candidates × 1,200 m in ~10 ms |
 | Days 3–4: FIS rules, course generator, course plot | §8 | Next |
 | Days 5–6: hazard model, spline optimizers | §8 | |
 | Day 6 gate: baseline runs end to end | §8 | |

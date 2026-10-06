@@ -5,7 +5,8 @@
     champion.npz    best parameters + best-so-far history
     telemetry.csv   the champion line, one row per metre
 
-A run whose manifest says complete is skipped, so re-running an experiment only fills gaps."""
+A run whose manifest says complete and whose run_hash matches the current config is skipped, so
+re-running an experiment only fills gaps. A run finished under a different config is re-run."""
 
 from __future__ import annotations
 
@@ -31,14 +32,27 @@ def run_dir(results_dir: str | Path, experiment: str, method: str, seed: int) ->
     return Path(results_dir) / experiment / method / f"seed_{seed}"
 
 
-def is_complete(path: Path) -> bool:
+def run_hash(cfg: dict, method: dict, seed: int) -> str:
+    """Hash of everything that can change one run's result: the config without the experiment's
+    method list, seed list and results location, plus this run's method and seed. Adding a seed or
+    a method to an experiment therefore leaves existing runs valid; changing physics does not."""
+    shared = {k: v for k, v in cfg.items() if k not in ("methods", "seeds", "results_dir")}
+    return config_hash({"config": shared, "method": method, "seed": seed})
+
+
+def run_status(path: Path, expected_hash: str) -> str:
+    """'complete' (finished with this exact config), 'stale' (finished with a different config),
+    or 'missing' (never finished)."""
     manifest = path / "manifest.json"
     if not manifest.exists():
-        return False
+        return "missing"
     try:
-        return bool(json.loads(manifest.read_text()).get("complete"))
+        saved = json.loads(manifest.read_text())
     except json.JSONDecodeError:
-        return False
+        return "missing"
+    if not saved.get("complete"):
+        return "missing"
+    return "complete" if saved.get("run_hash") == expected_hash else "stale"
 
 
 def git_info(repo: Path) -> dict:
@@ -73,6 +87,7 @@ class RunLogger:
             "method": method,
             "seed": seed,
             "config_hash": config_hash(cfg),
+            "run_hash": run_hash(cfg, method, seed),
             "config": cfg,
             "equipment": equipment,
             "git": git_info(Path(__file__).resolve().parent.parent),

@@ -2,8 +2,8 @@
 
     python -m skiopt.run configs/experiments/smoke.yaml [--force]
 
-Runs every (method, seed) pair in the experiment file. Runs already marked complete in their
-manifest.json are skipped unless --force is given."""
+Runs every (method, seed) pair in the experiment file. Runs already complete under the current
+config are skipped unless --force is given; runs completed under a different config are re-run."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import jax
 from skiopt import courses as course_lib
 from skiopt.budget import Budget
 from skiopt.config import load_config, load_equipment
-from skiopt.logger import RunLogger, is_complete, run_dir
+from skiopt.logger import RunLogger, run_dir, run_hash, run_status
 from skiopt.objectives import make_evaluator, make_trajectory, stack_courses
 from skiopt.optim.baselines import METHODS
 from skiopt.policies import make_policy
@@ -44,10 +44,13 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
             raise ValueError(f"unknown method {name!r}; known: {sorted(METHODS)}")
         for seed in cfg["seeds"]:
             path = run_dir(cfg["results_dir"], cfg["experiment"], name, seed)
-            if is_complete(path) and not force:
+            status = run_status(path, run_hash(cfg, method, seed))
+            if status == "complete" and not force:
                 print(f"skip  {name:16s} seed {seed}  (complete)")
                 report.append({"method": name, "seed": seed, "skipped": True})
                 continue
+            if status == "stale":
+                print(f"rerun {name:16s} seed {seed}  (config changed since it last ran)")
             budget = Budget(method.get("budget", 1), cfg["budget"]["grad_step_cost"])
             log = RunLogger(path, cfg, equipment, method, seed)
             best, score, history = METHODS[name](

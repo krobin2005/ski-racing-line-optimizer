@@ -2,12 +2,13 @@
 
 import math
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
 from conftest import make_params, run_line
-from skiopt.dynamics import PointMass2D, clip_kappa, lateral_load, turn_deceleration
+from skiopt.dynamics import PointMass2D, clip_kappa, lateral_load, limit_heading, turn_deceleration
 from skiopt.types import State
 
 G = 9.81
@@ -84,6 +85,36 @@ def test_heading_stays_below_psi_max(base_params):
     p = base_params
     _, traj = run_line(1 / 13, p, length=200.0)
     assert float(np.max(np.abs(np.asarray(traj.telemetry.psi)))) < p.psi_max
+
+
+def test_zero_curvature_keeps_heading(base_params):
+    """The heading limit must not pull a straight traverse back towards the fall line."""
+    p = base_params
+    state = State(jnp.asarray(0.0), jnp.asarray(0.5), jnp.asarray(15.0))
+    theta = jnp.asarray(math.radians(20))
+    dyn = PointMass2D()
+    for _ in range(100):
+        state, _ = dyn.step(state, 0.0, theta, p)
+    assert float(state.psi) == pytest.approx(0.5, abs=1e-6)
+
+
+@pytest.mark.parametrize("psi0", [-0.8, -0.3, 0.0, 0.3, 0.8])
+def test_heading_change_equals_curvature_times_distance(base_params, psi0):
+    """Well inside the limit, one step turns by exactly kappa * ds (the spline conversion relies on it)."""
+    p = base_params
+    state = State(jnp.asarray(0.0), jnp.asarray(psi0), jnp.asarray(15.0))
+    for kappa in (1 / 20, -1 / 20, 1 / 40):
+        new, out = PointMass2D().step(state, kappa, jnp.asarray(math.radians(20)), p)
+        assert float(new.psi) - psi0 == pytest.approx(kappa * float(out.ds), rel=1e-4)
+
+
+def test_heading_limit_is_identity_with_unit_slope_inside_the_knee(base_params):
+    """Including at psi = 0: an all-zeros (fall-line) start must still get steering gradients."""
+    p = base_params
+    for psi in (0.0, 0.4, -0.4, p.psi_knee - 1e-3):
+        assert float(limit_heading(jnp.asarray(psi), p)) == pytest.approx(psi, abs=1e-7)
+        assert float(jax.grad(lambda z: limit_heading(z, p))(jnp.asarray(psi))) == pytest.approx(1.0)
+    assert float(limit_heading(jnp.asarray(10.0), p)) < p.psi_max
 
 
 def test_time_distance_and_mean_speed_are_consistent(base_params):

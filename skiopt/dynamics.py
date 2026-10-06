@@ -49,6 +49,17 @@ def total_g(a_net, theta, g):
     return jnp.sqrt(a_net**2 + (g * jnp.cos(theta)) ** 2) / g
 
 
+def limit_heading(psi, p: SimParams):
+    """Smoothly keep |psi| < psi_max. Exactly the identity for |psi| <= psi_knee, so steering is
+    never weakened there; above the knee a tanh tail bends towards psi_max. Value and slope match
+    at the knee (C1), so gradients stay smooth."""
+    soft = p.psi_max - p.psi_knee
+    a = jnp.abs(psi)
+    tail = p.psi_knee + soft * jnp.tanh((a - p.psi_knee) / soft)
+    # Return psi itself (not sign * |psi|) inside the knee, so d/dpsi = 1 even at psi = 0.
+    return jnp.where(a <= p.psi_knee, psi, jnp.sign(psi) * tail)
+
+
 def clip_kappa(kappa_cmd, p: SimParams):
     k_max = 1.0 / p.r_floor
     return jnp.clip(kappa_cmd, -k_max, k_max)
@@ -79,7 +90,7 @@ class PointMass2D:
         cos_psi = jnp.cos(psi)
         ds = p.dy / cos_psi
         x_new = x + jnp.tan(psi) * p.dy
-        psi_new = p.psi_max * jnp.tanh((psi + kappa * ds) / p.psi_max)
+        psi_new = limit_heading(psi + kappa * ds, p)
 
         a_net = lateral_load(kappa, v, theta, psi, p.g)
         force = (

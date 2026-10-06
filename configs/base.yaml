@@ -5,6 +5,7 @@ sim:
   dy: 1.0                 # spatial step down the fall line (m)
   v0: 5.0                 # start speed (m/s)
   psi_max_deg: 80.0       # heading is smoothly limited to |psi| < psi_max
+  psi_knee_deg: 65.0      # steering is exact below this heading; the limit only bends headings between 65° and 80°
   v_floor: 0.5            # numerical floor on speed (m/s); far below v_stop, only prevents division by zero
 
 physics:
