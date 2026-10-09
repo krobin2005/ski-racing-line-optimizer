@@ -47,20 +47,28 @@ def method_label(m: dict) -> str:
     return str(m["method"])
 
 
-def turn_radii(telemetry_csv: Path, min_turn_m: float = 8.0) -> np.ndarray:
-    """Tightest radius of each turn: the line is split where curvature changes sign, and each
-    segment longer than `min_turn_m` counts as one turn."""
+def turn_radii(telemetry_csv: Path, min_turn_m: float = 8.0, kind: str = "average") -> np.ndarray:
+    """Radius of each turn. The line is split where curvature changes sign; each segment longer
+    than `min_turn_m` counts as one turn.
+
+    kind="average" (default): arc length / heading change, i.e. 1 / mean curvature over the turn.
+    This is the "average radius" racers quote (18-22 m for men's Continental Cup GS).
+    kind="tightest": 1 / peak curvature, the sharpest point of the turn (about 1/1.6 of the average
+    for a smooth turn)."""
     with open(telemetry_csv) as f:
-        k = np.array([float(r["kappa"]) for r in csv.DictReader(f)])
-    if len(k) == 0:
+        rows = list(csv.DictReader(f))
+    if not rows:
         return np.zeros(0)
-    sign = np.sign(k)
-    edges = np.flatnonzero(np.diff(sign) != 0) + 1
+    k = np.array([float(r["kappa"]) for r in rows])
+    ds = np.array([float(r["ds"]) for r in rows])
+    edges = np.flatnonzero(np.diff(np.sign(k)) != 0) + 1
     radii = []
-    for seg in np.split(k, edges):
-        peak = np.max(np.abs(seg))
-        if len(seg) >= min_turn_m and peak > 1e-3:
-            radii.append(1.0 / peak)
+    for seg_k, seg_ds in zip(np.split(k, edges), np.split(ds, edges)):
+        length = seg_ds.sum()
+        turned = np.sum(np.abs(seg_k) * seg_ds)
+        if length < min_turn_m or turned < 1e-3:
+            continue
+        radii.append(length / turned if kind == "average" else 1.0 / np.max(np.abs(seg_k)))
     return np.array(radii)
 
 
@@ -156,6 +164,7 @@ def summarize(exp_dir: Path) -> str:
     for name, ms in by_method.items():
         champ = min(ms, key=lambda m: m["best_score"])
         radii = turn_radii(champ["_dir"] / "telemetry.csv")
+        tightest = turn_radii(champ["_dir"] / "telemetry.csv", kind="tightest")
         in_band = float(np.mean((radii >= TYPICAL_BAND[0]) & (radii <= TYPICAL_BAND[1]))) if len(radii) else 0.0
         causes = champ.get("H_by_cause", {})
         total_h = sum(causes.values()) or 1.0
@@ -163,16 +172,17 @@ def summarize(exp_dir: Path) -> str:
         lines.append(
             f"- **{name}** (seed {champ['seed']}): T {champ['T']:.2f} s · D {champ['D']:.1f} m · "
             f"v̄ {champ['v_mean'] * 3.6:.1f} km/h · max G {champ['max_G']:.2f} · "
-            f"tightest turn {radii.min() if len(radii) else float('nan'):.1f} m · "
-            f"turns in 18–22 m: {100 * in_band:.0f}% · P_DNF {100 * champ.get('P_DNF', 0):.1f}%"
+            f"median turn radius {np.median(radii) if len(radii) else float('nan'):.1f} m "
+            f"(tightest point {tightest.min() if len(tightest) else float('nan'):.1f} m) · "
+            f"turns averaging 18–22 m: {100 * in_band:.0f}% · P_DNF {100 * champ.get('P_DNF', 0):.1f}%"
             + (f" (risk from {cause_txt})" if cause_txt else "")
             + (f" · **{champ['gates_missed']} gates missed**" if champ.get("gates_missed") else "")
         )
         if champ.get("gates_missed", 0) == 0:
             if in_band < 0.5:
-                warnings.append(f"{name}: only {100 * in_band:.0f}% of turns in the 18–22 m band")
-            if len(radii) and radii.min() <= 12.05:
-                warnings.append(f"{name}: champion sits at the 12 m curvature clip")
+                warnings.append(f"{name}: only {100 * in_band:.0f}% of turns average 18–22 m")
+            if len(tightest) and np.mean(tightest <= 12.05) > 0.25:
+                warnings.append(f"{name}: over a quarter of turns touch the 12 m curvature clip")
             if champ["max_G"] >= 3.95:
                 warnings.append(f"{name}: champion sits at G_max")
             v = champ["v_mean"] * 3.6

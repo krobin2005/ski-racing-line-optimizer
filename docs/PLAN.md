@@ -181,6 +181,21 @@ Mass, drag and friction use published values instead of made-up ones. Every numb
 
 Realism check, run once at the day-6 gate: on a standard generated course, a sensible line should take about 60–80 s at a mean speed of about 55–70 km/h. If it doesn't, tune k_turn before anything else.
 
+**Day-6 calibration (as built).** Adam on the easy course at 4×10⁴ evaluations, varying the turn costs:
+
+| k_tight | k_skid | T | v̄ | P_DNF |
+| --- | --- | --- | --- | --- |
+| 0.5 | 3 | 50.6 s | 66.8 km/h | 17% |
+| **2.0** | **3** | **59.8 s** | **56.5 km/h** | **7%** |
+| 2.0 | 8 | 66.2 s | 51.1 km/h | 9% |
+| 4.0 | 8 | 78.9 s | 42.9 km/h | 19% |
+
+**k_tight = 2.0 is adopted.** It is the setting that lands inside the realism ranges and at the "sensible line, a few percent DNF" target.
+
+**Turn radius is measured as the average over each turn** (arc length ÷ heading change), matching how racers quote 18–22 m. The tightest point of each turn is reported separately.
+
+**Known limitation: turn shape.** In every setting, optimized lines run rounder than the band on average (about 28 m) and concentrate each turn into a short peak of about 14 m: "straighten, then hook." Stronger turn costs slow the skier but don't change this shape. The model has no limit on how fast curvature can change, so edge changes are free, while a real skier needs about 0.5–1 s to change edges. A curvature-rate limit (a maximum dκ/ds, or a cost on it) is the physically motivated fix. It is a proposed change for discussion and is not built.
+
 Each physics and risk term has an on/off switch (`physics.terms.drag`, `risk.enabled`, …) for the analytic tests.
 
 ## 5. DNF model, gates and objectives

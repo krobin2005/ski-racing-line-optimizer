@@ -15,7 +15,9 @@ physics:
   rho: 1.0                # air density at altitude (kg/m^3)
   mu: 0.04                # ski-snow friction coefficient
   k_turn: 0.03            # carving loss per unit |a_net| (placeholder)
-  k_tight: 0.5            # loss coefficient for turns tighter than r_typical_lo (placeholder)
+  k_tight: 2.0            # loss coefficient for turns tighter than r_typical_lo. Day-6 calibration on the
+                          # easy course (Adam, 4e4 evals): 0.5 -> 50.6 s, 66.8 km/h, 17% DNF; 2.0 -> 59.8 s,
+                          # 56.5 km/h, 7% DNF (inside the realism and "sensible line" targets)
   k_skid: 3.0             # loss coefficient for turns tighter than r_skid (placeholder)
   beta_kappa: 2000.0      # softplus sharpness on curvature (1/(1/m)); higher = sharper band edges
   terms:                  # on/off switches for the analytic tests and ablations
