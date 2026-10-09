@@ -33,15 +33,23 @@ def cmaes(prob: Problem, method: dict, budget: Budget, key, log, init=None):
     key, k_init = jax.random.split(key)
     state = es.init(k_init, mean, es_params)
 
+    # The smooth-loss arm anneals the gate penalty exactly like Adam (gradient.py), so the two
+    # arms differ only in the optimizer, not in the objective schedule.
+    lam0, lam1 = float(method.get("lam_gate_start", 0.1)), float(method.get("lam_gate_end", 100.0))
     tracker = Tracker(log, budget)
     cost = pop * prob.n_courses
+    start_used = budget.used
+    span = max(stop_at - start_used, 1.0)
     while budget.used + cost <= stop_at:
         key, k_ask, k_tell = jax.random.split(key, 3)
         population, state = es.ask(k_ask, state, es_params)
-        ev = prob.evaluate(population, prob.courses)
+        lam = lam0 * (lam1 / lam0) ** ((budget.used - start_used) / span)
+        obj_t = prob.obj._replace(lam_gate=lam) if objective == "smooth" else prob.obj
+        ev = prob.evaluate(population, prob.courses, obj_t)
         budget.charge_rollouts(cost)
         state, _ = es.tell(k_tell, population, _fitness(ev, objective), state, es_params)
-        tracker.update(population, ev, sigma=float(state.std))
+        tracker.update(population, ev, sigma=float(state.std),
+                       lam_gate=float(lam) if objective == "smooth" else "")
     return tracker.result()
 
 
