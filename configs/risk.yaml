@@ -1,0 +1,35 @@
+# DNF model (PLAN.md §5, "Switches and tuning"). Every hazard term and hard limit can be switched off
+# and retuned here; experiment files may override any key under `risk:`. Tune with:
+#     python -m skiopt.analysis.risk_map --out figures/risk_map.png
+# Hazard h is a crash risk per metre; P_finish = exp(-sum h * ds).
+# Calibration target: a sensible line on a standard course has a few percent DNF; an aggressive one 10-30%.
+risk:
+  enabled: true              # master switch for the four hazard terms (hard limits below have their own)
+  terms:
+    load:                    # edge washout / body can't hold the load: G = sqrt(a_net^2 + (g cos theta)^2) / g
+      enabled: true
+      c: 0.004               # risk per metre per g above G_safe
+      G_safe: 3.0
+      beta: 8.0              # softplus sharpness (1/g)
+    tight:                   # radius under r_skid: edge catch. Uses the applied (clipped) curvature.
+      enabled: true
+      c: 0.15                # risk per metre per (1/m) of curvature above 1/r_skid
+      r_skid: 14.0
+      beta: 2000.0           # 1/(1/m)
+    late:                    # line too round: the next gate needs a curvature kappa_req above 1/r_skid
+      enabled: true
+      c: 0.05                # risk per metre per (1/m) of kappa_req above 1/r_skid
+      beta: 2000.0
+      kappa_req_cap: 0.5     # cap (1/m) so the last metre before a gate cannot explode the hazard
+    slow:                    # too slow: no edge pressure
+      enabled: true
+      c: 0.0005              # risk per metre per m/s below v_slow
+      v_slow_kmh: 35.0
+      beta: 2.0              # 1/(m/s)
+      after_m: 60.0          # no slow risk in the start zone, where everyone accelerates from v0
+  hard:                      # exact DNF in the hard score; steep softplus wall in the smooth objective
+    g_max:     {enabled: true, value: 4.0}
+    v_stop:    {enabled: true, value_kmh: 10.0}
+    piste:     {enabled: true}          # piste width comes from configs/fis_gs.yaml (40 m)
+    gate_miss: {enabled: true}          # disable only for the analytic tests
+  wall: {weight: 100.0, beta: 20.0}     # smooth-objective walls: weight * sum softplus(excess) * ds

@@ -1,0 +1,19 @@
+# Day-6 gate (PLAN.md §8): every spline method on the easy course at the full spline budget
+# (2e5 rollout-equivalents, configs/base.yaml). Three seeds for the gate; the final runs use ten.
+#     python -m skiopt.run configs/experiments/baseline.yaml
+#     python -m skiopt.analysis.summarize results/baseline
+experiment: baseline
+
+course: {kind: library, name: easy}
+policy: spline
+
+methods:
+  - {name: fall_line}
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: adam, label: adam_restarts, restarts: 4, lr: 0.1, lr_final: 0.01}
+  - {name: cmaes, population: 32, sigma: 0.4}
+  - {name: cmaes_smooth, population: 32, sigma: 0.4}
+  - {name: ga, population: 128, sigma: 1.0, sigma_final: 0.02, p_mutate: 0.3}
+  - {name: hybrid, cma_fraction: 0.3, cmaes: {population: 32, sigma: 0.4}, adam: {lr: 0.05, lr_final: 0.005}}
+
+seeds: [0, 1, 2]

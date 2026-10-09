@@ -21,10 +21,13 @@ Tested with Python 3.13 and 3.14 (JAX 0.11.2, evosax 0.3.1). Every pinned packag
 ## Running
 
 ```bash
-pytest                                                   # run the tests (~4 s)
+pytest                                                   # run the tests (~40 s)
 python -m skiopt.run configs/experiments/smoke.yaml      # pipeline smoke test; add --force to re-run
 python -m skiopt.bench                                   # evaluation speed vs. the < 50 ms / 1,000 target
 python -m skiopt.analysis.plots --generated 7 --out figures/gen_7.png   # plot a course (or --library easy, --run <dir>)
+python -m skiopt.analysis.risk_map --out figures/risk_map.png            # tune configs/risk.yaml
+python -m skiopt.run configs/experiments/baseline.yaml                  # day-6 gate: every spline method on the easy course
+python -m skiopt.analysis.summarize results/baseline                    # tables + race reports -> results/baseline/SUMMARY.md
 ```
 
 Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest.json`, `progress.csv`, `champion.npz`, `telemetry.csv`. Finished runs are skipped on re-run. Figures and tables are rebuilt from saved results, never by re-running simulations.
@@ -38,10 +41,13 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | `skiopt/dynamics.py` | 2D point mass: curvature clip, lateral load a_net, turning bands, speed update |
 | `skiopt/rollout.py` | Fixed-length `lax.scan` rollout; padding steps after the finish are masked |
 | `skiopt/courses.py` | `CourseSpec`, FIS validator, course generator, `easy` library course, padding to stack courses |
-| `skiopt/objectives.py` | `evaluate(params_batch, courses)`; gate check (DQ in the hard score, softplus penalty in the smooth loss); E[score] = T until the DNF model lands |
+| `skiopt/objectives.py` | `evaluate` / `value_and_grad`; E[score] = P_finish·T + P_DNF·T_DNF; every DNF (missed gate, piste, G_max, v_stop) is a graded DQ in the hard score; softplus penalties + walls in the smooth loss |
 | `skiopt/analysis/plots.py` | Course plot: gates, piste, start/finish, line coloured by speed, pitch profile |
-| `skiopt/policies.py` | Open-loop curvature policy (spline, MLP, coach line to come) |
-| `skiopt/optim/baselines.py` | `fall_line` and `random_search`, to exercise the pipeline |
+| `skiopt/hazard.py`, `configs/risk.yaml` | DNF model: 4 hazard terms + hard limits, each switchable and tunable |
+| `skiopt/policies.py` | Open-loop curvature and the spline line (MLP and coach line to come) |
+| `skiopt/optim/` | `adam` (+ restarts), `cmaes`, `cmaes_smooth`, `ga`, `hybrid`, plus `fall_line` / `random_search` baselines; `registry.py` maps names to methods |
+| `skiopt/analysis/risk_map.py` | DNF risk of one turn over radius × speed, for tuning `risk.yaml` |
+| `skiopt/analysis/summarize.py` | `SUMMARY.md` + `summary.csv` from saved runs: headline table, pairwise tests, race reports, warnings |
 | `skiopt/run.py`, `logger.py`, `budget.py`, `config.py` | Runner, result files, rollout-equivalent budget, YAML config |
 
 ## Status

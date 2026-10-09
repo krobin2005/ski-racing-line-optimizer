@@ -36,11 +36,18 @@ objective:                # PLAN.md §5; gate clearance comes from configs/fis_g
   dq_base: 1000.0         # hard score of a run that misses any gate: dq_base + total miss distance (m)
   lam_gate: 1.0           # smooth loss: T + lam_gate * sum softplus(miss)^2  (s/m^2); annealed upward by gradient methods
   beta_miss: 5.0          # softplus sharpness on miss distance (1/m)
+  t_dnf_factor: 1.5       # T_DNF = t_dnf_factor * reference winning time
+  ref_speed_kmh: 60.0     # reference winning time = course length / ref_speed
+
+spline:
+  knot_spacing_m: 15.0    # one control point every 15 m (~58 for the easy course). 10 m gave CMA-ES too many
+                          # dimensions (no clean line at 2e5 evals); 15 m: clean at 6e4, Adam unchanged
 
 budget:
   spline_rollouts: 200000
   controller_rollouts: 2000000
-  grad_step_cost: 3.0     # rollout-equivalents per gradient step (re-measured when Adam lands)
+  grad_step_cost: 3.0     # rollout-equivalents per gradient step. Measured wall clock on the easy
+                          # course: 6x a forward run for one candidate, 1.7x in a batch of 64; 3 kept.
 
 seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 

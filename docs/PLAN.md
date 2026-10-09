@@ -210,22 +210,21 @@ Every term and hard limit above can be switched off and retuned in `configs/risk
 
 The DNF limits will need fine-tuning, so none of them are hard-coded. Every hazard term and every hard limit lives in `configs/risk.yaml`, has its own `enabled` switch, and exposes the constants that set how risky a turn of a given radius and speed is. Experiment configs may override any of these values, and the values used are copied into each run's `manifest.json`, so every result records the risk settings it was produced with.
 
-```yaml
-risk:
-  enabled: true              # master switch: false → P_DNF = 0 from hazards (hard limits below still apply if enabled)
-  beta: 4.0                  # softplus sharpness for all hazard terms (higher = closer to a hard threshold)
-  terms:
-    load:  {enabled: true, c: 0.002, G_safe: 3.0}     # risk per metre per g above G_safe
-    tight: {enabled: true, c: 0.002, r_skid: 14.0}    # risk per metre per (1/m) of curvature above 1/r_skid
-    late:  {enabled: true, c: 0.002}                  # risk per metre per (1/m) of κ_req above 1/r_skid
-    slow:  {enabled: true, c: 0.001, v_slow_kmh: 35}  # risk per metre per m/s below v_slow
-  hard:                      # exact DNF in the hard score; steep softplus wall in the smooth objective
-    g_max:     {enabled: true, value: 4.0}
-    v_stop:    {enabled: true, value_kmh: 10}
-    piste:     {enabled: true, width_m: 40}
-    gate_miss: {enabled: true}                        # disable only for the analytic tests
-  wall: {weight: 100.0, beta: 20.0}                   # smooth-objective walls for enabled hard limits
-```
+As built (days 5–6), `configs/risk.yaml` is the source of truth. It differs from the sketch that was here before in three ways:
+
+- **Sharpness per term.** Each term has its own softplus sharpness `beta`, in that term's units (1/g, 1/(1/m), 1/(m/s)), instead of one shared `beta`.
+- **Start zone.** The slow term has `after_m: 60`, so it is off in the start zone where every line is still accelerating from v₀.
+- **Late-line cap.** The late term has `kappa_req_cap: 0.5`, so the last metre before a gate can't blow up the hazard.
+
+Starting values, calibrated with the risk map for one 90° turn on a 20° pitch:
+
+| Case | DNF risk per turn |
+| --- | --- |
+| 20 m at 70 km/h | ≈ 0% |
+| 18 m at 80 km/h | ≈ 0.9% |
+| 14 m at 70 km/h | ≈ 0.7% |
+| 13 m at 70 km/h | ≈ 3% |
+| G > 4.0 g | hard DNF |
 
 The `c` values above are placeholders, not calibrated numbers.
 
@@ -270,16 +269,16 @@ A crash and a missed gate both count as a DNF. The core quantity is the expected
 E[score] = P_finish · T + P_DNF · T_DNF
 ```
 
-T_DNF = 1.5× a reference winning time. With T around 70 s, each extra 1% of DNF risk costs about 0.35 s, so a line must gain more than that to justify the risk. The risk-appetite sweep over T_DNF is a stretch item.
+T_DNF = 1.5× a reference winning time, taken as course length ÷ 60 km/h (`objective.ref_speed_kmh`). With T around 70 s, each extra 1% of DNF risk costs about 0.35 s, so a line must gain more than that to justify the risk. The risk-appetite sweep over T_DNF is a stretch item.
 
 - **Smooth objective** (gradient methods, and the CMA-ES smooth-loss arm): E[score] + λ·Σ softplus(gate-miss distance)², with λ annealed upward, plus a steep softplus wall for each enabled hard limit (G_max, v_stop, piste). Without the walls, gradient methods get no warning as they approach a limit that ends the run.
-- **Hard score** (all reporting, and evolutionary fitness): a run that misses a gate scores DQ_BASE + Σ miss distance, so evolution still sees progress among disqualified runs. Runs that pass every gate score E[score].
+- **Hard score** (all reporting, and evolutionary fitness): every DNF scores DQ_BASE plus a graded measure of how badly it failed: Σ miss distance plus the hard-limit excess (the wall integral ÷ its weight). DNFs include a missed gate, leaving the piste, G > G_max and v < v_stop. Evolution therefore still sees progress among disqualified runs, and no DNF can outrank a finish. Runs that finish score E[score]. *(Days 5–6 change: hard-limit DNFs first scored T_DNF, which let CMA-ES prefer a line that left the piste over one that missed a gate.)*
 
 ## 6. Policies
 
 All policies share one interface, `policy(params, obs, k) → κ`, and run through one rollout function.
 
-- **Spline (open-loop).** A cubic spline x(y) through N control points is converted to ψ_k and κ_k with the same finite-difference scheme as the step function, so the conversion is exact until the 12 m clip.
+- **Spline (open-loop).** A cubic spline x(y) through control points every 10 m (`spline.knot_spacing_m`; about 88 for the easy course) is converted to ψ_k and κ_k with the same finite-difference scheme as the step function, so the conversion is exact until the 12 m clip (measured: within 2.5 cm, from the forced straight first metre). The start slope is clamped to 0 and the end is natural. The spline is precomputed as a basis matrix, so `decode(params)` is one matrix product.
 - **MLP (closed-loop).** 16 → 16 → 16 → 1, about 560 parameters. Output κ = (1/r_floor)·tanh(·).
     - Inputs (16): dx, dy, side and width for the next 3 gates; ψ, v, θ; distance to the nearer piste edge.
     - Inputs are normalized before the network: distances divided by 30 m, v by 25 m/s, angles left in radians. Without this, gate distances in the tens of metres swamp the other inputs.

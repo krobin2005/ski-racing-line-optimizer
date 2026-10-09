@@ -13,7 +13,7 @@ from typing import Callable, NamedTuple
 import jax
 import jax.numpy as jnp
 
-from skiopt import terrain
+from skiopt import hazard, terrain
 from skiopt.dynamics import PointMass2D
 from skiopt.types import Course, SimParams, State, StepOutput, Summary
 
@@ -55,7 +55,14 @@ def rollout(policy: PolicyFn, params, course: Course, p: SimParams, n_steps: int
         new_state, out = _DYNAMICS.step(state, kappa_cmd, theta, p, y)
         active = (y < course.length).astype(out.dt.dtype)
         new_state = jax.tree.map(lambda a, b: jnp.where(active > 0, a, b), new_state, state)
-        out = StepOutput(dt=out.dt * active, ds=out.ds * active, active=active, telemetry=out.telemetry)
+
+        tel, r = out.telemetry, p.risk
+        k_req = hazard.kappa_required(state.x, y, state.psi, course, r.clearance, r.kappa_req_cap)
+        h = hazard.hazard_terms(tel.G, tel.kappa, k_req, state.v, y, r)
+        broken, wall = hazard.hard_limits(tel.G, state.v, state.x, course.piste_half_width, r)
+        ds = out.ds * active
+        out = StepOutput(dt=out.dt * active, ds=ds, active=active, telemetry=tel,
+                         hazard=h * ds, hard_dnf=broken * active, wall=wall * ds, kappa_req=k_req)
         return new_state, out
 
     final, traj = jax.lax.scan(body, state0, jnp.arange(n_steps))
@@ -64,6 +71,8 @@ def rollout(policy: PolicyFn, params, course: Course, p: SimParams, n_steps: int
     G = jnp.where(traj.active > 0, traj.telemetry.G, 0.0)
     # Telemetry x at step k is the position at y = k * dy, so x at a gate line is a lookup.
     gate_idx = jnp.clip(jnp.round(course.gates.y / p.dy).astype(jnp.int32), 0, n_steps - 1)
+    H_by_cause = jnp.sum(traj.hazard, axis=0)
     summary = Summary(T=T, D=D, v_mean=D / T, v_end=final.v, max_G=jnp.max(G),
-                      x_gates=traj.telemetry.x[gate_idx])
+                      x_gates=traj.telemetry.x[gate_idx], H=jnp.sum(H_by_cause), H_by_cause=H_by_cause,
+                      hard_dnf=jnp.max(traj.hard_dnf), wall=jnp.sum(traj.wall))
     return summary, traj
