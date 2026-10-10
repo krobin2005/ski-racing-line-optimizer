@@ -57,8 +57,8 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | Setup: repo, environment, plan | — | Done |
 | Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 24 tests pass; 1,000 candidates × 1,200 m in ~10 ms |
 | Days 3–4: FIS rules, course generator, course plot | §8 | Done: 1,000 generated courses validate; 43 tests pass |
-| Days 5–6: hazard model, spline optimizers | §8 | Next |
-| Day 6 gate: baseline runs end to end | §8 | |
+| Days 5–6: hazard model, spline optimizers | §8 | Done: switchable DNF model, risk map, Adam / CMA-ES (2 arms) / GA / hybrid, summary + figures |
+| Day 6 gate: baseline runs end to end | §8 | Passed with one open issue: 5 of 6 methods finish cleanly; 57–60 s, 57–59 km/h, ~7% DNF. Turn shape too peaky, see [docs/reports/day6_baseline](docs/reports/day6_baseline/SUMMARY.md) |
 | Days 7–8: coach line, deceptive course, hybrid | §8 | |
 | Days 9–11: neuroevolution | §8 | |
 | Days 12–14: 10-seed runs, figures, report | §8 | |
