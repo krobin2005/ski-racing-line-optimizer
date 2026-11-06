@@ -5,7 +5,10 @@
 - line_on_map_<method>.png: each method's best line on the real terrain (hillshade + contours), with
   the piste outline and the red/blue gates, coloured by speed.
 - run_trace.png: along the course for every method's best line: speed, G, edge angle and normal load,
-  with the 3D risk thresholds (boot-out ~70 deg, edge DNF 78 deg, G_max) marked.
+  with the 3D risk thresholds (boot-out, edge DNF, G_max) marked.
+- split_times.png: cumulative time along the course for each method's best line, with Marco Schwarz's
+  official run-1 split times (data/gran_risa/race_2025_run1.json) as horizontal levels. The timing points'
+  positions are not published, so this compares the shape of the time profile, not section speeds.
 """
 
 from __future__ import annotations
@@ -82,7 +85,7 @@ def line_on_map(build, tel, title):
     return fig
 
 
-def run_trace(champions: dict, p3_edge_safe=66.0, edge_dnf=78.0, g_max=4.0):
+def run_trace(champions: dict, p3_edge_safe=71.7, edge_dnf=80.7, g_max=4.0, boot_out=75.7):
     fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True, facecolor=SURFACE, gridspec_kw={"hspace": 0.12})
     for name, tel in champions.items():
         colour, _ = method_style(name)
@@ -96,7 +99,8 @@ def run_trace(champions: dict, p3_edge_safe=66.0, edge_dnf=78.0, g_max=4.0):
     axes[1].axhline(g_max, color=INK, lw=1, ls="--")
     axes[1].text(0, g_max, " G_max (DNF)", fontsize=7, color=INK_2, va="bottom")
     axes[2].set_ylabel("edge angle (°)")
-    for y, label in ((p3_edge_safe, " boot-out risk starts"), (70.0, " boot-out ≈ 70° (49 mm stack)"), (edge_dnf, " DNF")):
+    for y, label in ((p3_edge_safe, " boot-out risk starts"), (boot_out, f" boot-out ≈ {boot_out:.1f}° (49 mm stack, 90 mm sole)"),
+                     (edge_dnf, " DNF")):
         axes[2].axhline(y, color=MUTED if y != edge_dnf else INK, lw=1, ls="--")
         axes[2].text(0, y, label, fontsize=7, color=INK_2, va="bottom")
     axes[3].set_ylabel("normal load (g)\n< 0: airborne")
@@ -107,6 +111,32 @@ def run_trace(champions: dict, p3_edge_safe=66.0, edge_dnf=78.0, g_max=4.0):
     for ax in axes:
         ax.grid(axis="y", color="#e4e3df", lw=0.8)
         _style(ax)
+    return fig
+
+
+def split_times(champions: dict):
+    race = json.loads((T.DATA / "gran_risa" / "race_2025_run1.json").read_text())["fastest_run1"]
+    real = [("Int 1", race["int1_s"]), ("Int 2", race["int2_s"]), ("Int 3", race["int3_s"]), ("Finish", race["finish_s"])]
+    fig, ax = plt.subplots(figsize=(11, 6), facecolor=SURFACE)
+    for label, t in real:
+        ax.axhline(t, color=MUTED, lw=1, ls="--")
+        ax.text(0, t, f" {label}: {t:.2f} s (Schwarz)", fontsize=7, color=INK_2, va="bottom")
+    lines = []
+    for name, tel in champions.items():
+        colour, marker = method_style(name)
+        t = np.cumsum(tel["dt"]) if "dt" in tel else tel["t"]
+        ax.plot(tel["y"], t, color=colour, lw=1.6, label=name)
+        crossings = [float(np.interp(tt, t, tel["y"])) for _, tt in real[:3]]
+        lines.append(f"{name}: " + ", ".join(f"{c:.0f} m" for c in crossings))
+    ax.set_xlabel("distance along the course s (m, horizontal)")
+    ax.set_ylabel("elapsed time (s)")
+    ax.set_title("Gran Risa · elapsed time vs. Schwarz's official run-1 splits (timing-point positions unpublished)",
+                 loc="left", fontsize=10, color=INK)
+    ax.text(0.99, 0.02, "where each line reaches the split times:\n" + "\n".join(lines), transform=ax.transAxes,
+            ha="right", va="bottom", fontsize=7, color=INK_2)
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK_2, loc="upper left")
+    ax.grid(color="#e4e3df", lw=0.6)
+    _style(ax)
     return fig
 
 
@@ -136,6 +166,9 @@ def main(argv=None) -> None:
     fig = run_trace(champions)
     fig.savefig(args.out / "run_trace.png", dpi=150, bbox_inches="tight", facecolor=SURFACE)
     print(f"wrote {args.out / 'run_trace.png'}")
+    fig = split_times(champions)
+    fig.savefig(args.out / "split_times.png", dpi=150, bbox_inches="tight", facecolor=SURFACE)
+    print(f"wrote {args.out / 'split_times.png'}")
     (args.out / "course_set.json").write_text(json.dumps(build.meta, indent=1, default=str))
 
 
