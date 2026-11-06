@@ -1,0 +1,12 @@
+# 2D side of the penalty ablation (see gran_risa_sharp.yaml): Adam on the easy course with beta = 200.
+experiment: final_easy_sharp
+
+course: {kind: library, name: easy}
+policy: arc
+objective: {beta_miss: 200.0}
+
+methods:
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: cmaes_smooth, population: 32, sigma: 0.5}
+
+seeds: [0, 1, 2]

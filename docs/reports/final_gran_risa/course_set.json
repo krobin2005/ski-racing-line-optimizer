@@ -1,0 +1,29 @@
+{
+ "event": "Audi FIS Ski World Cup, Alta Badia (ITA), men's giant slalom, 21 Dec 2025, run 1",
+ "gates": 52,
+ "turning_gates": 51,
+ "course_setter": "Nathan Bryant (USA)",
+ "start_m": 1868.0,
+ "finish_m": 1420.0,
+ "vertical_drop_m": 448.0,
+ "homologation": "12080/10/16",
+ "fastest_run_s": 76.0,
+ "fastest_run_by": "Marco Schwarz (AUT)",
+ "seed": 0,
+ "smooth_m": 8.0,
+ "frame_report": {
+  "raw_length_m": 2028.2630598295223,
+  "section_start_s_raw": 532.9762401888943,
+  "section_m": 1186.0,
+  "start_offset_m": 0.0,
+  "finish_offset_m": 40.0,
+  "min_centreline_radius_m": 66.6049889787925,
+  "max_deviation_from_osm_m": 15.212998146128045
+ },
+ "attempts": 6,
+ "surface_length_m": 1238.0099005987092,
+ "vertical_drop_model_m": 447.7342549459195,
+ "piste_width_median_m": 40.109014398146314,
+ "piste_width_min_m": 14.20827575920783,
+ "validation": []
+}

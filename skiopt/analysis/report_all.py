@@ -26,7 +26,7 @@ def build(results: Path, out: Path) -> list[Path]:
         if not exp.exists() or not list(exp.glob("*/seed_*/manifest.json")):
             print(f"skip {name}: no results")
             continue
-        dest = out / f"final_{name}"
+        dest = out / (name if name.startswith("final_") else f"final_{name}")
         dest.mkdir(parents=True, exist_ok=True)
         summarize.summarize(exp)
         for f in ("SUMMARY.md", "summary.csv"):

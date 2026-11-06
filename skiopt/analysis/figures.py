@@ -36,6 +36,8 @@ METHOD_STYLE = {
     "cmaes_smooth": ("#e87ba4", "v"),
     "adam_restarts": ("#008300", "P"),
     "coach_line": ("#4a3aa7", "*"),
+    "dp": ("#8a5a2b", "h"),
+    "dp_adam": ("#3b3b39", "X"),
 }
 NEUTRAL = ("#8a8984", "x")
 DQ = 1000.0
@@ -66,6 +68,9 @@ def convergence(runs, ax):
             ev = np.array([float(r["evals"]) for r in m["_progress"]])
             best = np.array([float(r["best"]) for r in m["_progress"]])
             best = np.where(best < DQ, best, np.nan)
+            # Best so far over the whole run: a two-phase method (hybrid, DP -> Adam) logs each
+            # phase's own best, but the run's result is the best of both.
+            best = np.fmin.accumulate(best)
             idx = np.searchsorted(ev, grid, side="right") - 1
             curves.append(np.where(idx >= 0, best[np.clip(idx, 0, None)], np.nan))
         curves = np.array(curves)
@@ -130,7 +135,13 @@ def radius_hist(runs, fig):
     groups = {n: ms for n, ms in by_method(runs).items() if any(finished(m) for m in ms) and n != "fall_line"}
     if not groups:
         return
-    axes = fig.subplots(1, len(groups), sharey=True, squeeze=False)[0]
+    ncol = min(4, len(groups))
+    nrow = -(-len(groups) // ncol)
+    fig.set_size_inches(4.0 * ncol, 3.3 * nrow + 0.5)
+    grid = fig.subplots(nrow, ncol, sharey=True, squeeze=False)
+    axes = grid.ravel()
+    for ax in axes[len(groups):]:
+        ax.set_visible(False)
     bins = np.arange(12, 41, 1.0)
     for ax, (name, ms) in zip(axes, groups.items()):
         radii = np.concatenate([turn_radii(m["_dir"] / "telemetry.csv") for m in ms if finished(m)])
@@ -138,13 +149,14 @@ def radius_hist(runs, fig):
         ax.axvspan(18, 22, color="#f0efec", zorder=0)
         ax.hist(np.clip(radii, 12, 40), bins=bins, color=colour, edgecolor=SURFACE, linewidth=1)
         share = np.mean((radii >= 18) & (radii <= 22)) if len(radii) else 0
-        ax.set_title(f"{name} · {100 * share:.0f}% average 18–22 m", loc="left", fontsize=9, color=INK)
+        ax.set_title(f"{name}\n{100 * share:.0f}% of turns average 18–22 m", loc="left", fontsize=9, color=INK)
         ax.set_xlabel("turn radius (m)")
         _style(ax)
-    axes[0].set_ylabel("turns")
+    for ax in grid[:, 0]:
+        ax.set_ylabel("turns")
     fig.suptitle("Average radius of each turn (arc length ÷ heading change) in finished champion lines; "
-                 "40+ m drawn at 40", 
-                 x=0.07, ha="left", fontsize=10, color=INK)
+                 "40+ m drawn at 40", x=0.02, ha="left", fontsize=10, color=INK)
+    fig.tight_layout()
 
 
 def make_figures(exp_dir: Path, out: Path) -> list[Path]:
