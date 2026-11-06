@@ -12,7 +12,7 @@ We build a differentiable point-mass GS simulator, first on a tilted plane (2D),
 
 Four findings stand out (10 seeds per method, Mann–Whitney tests with Holm correction):
 1. **Representation matters more than the optimizer.** Describing the line as circular arcs between gate apexes instead of a cubic spline makes every method 17–30 s faster and turns realistic.
-2. **Evolution wins, on every course.** CMA-ES on the true score is best or tied-best on all three courses, and reaches within 1% of the best line about 20× sooner than Adam on the easy course. On the trap course and the Gran Risa, Adam never gets within 1%.
+2. **Evolution wins, on every course, but mostly because of the objective.** CMA-ES on the true score is best or tied-best on all three courses, and reaches within 1% of the best line about 20× sooner than Adam on the easy course. On the trap course and the Gran Risa, Adam never gets within 1%. Ablations trace most of that gap to two biased terms in the smooth loss gradient descent needs (the gate penalty and, in 3D, the edge-angle wall); with both fixed, Adam comes within 0.1 s of CMA-ES on every course, at about 20× the wall-clock time on the Gran Risa.
 3. **Evolution beats the grid.** On the Gran Risa, CMA-ES (74.51 s), the CMA-ES → Adam hybrid (74.59 s) and the GA (74.82 s) all beat the dynamic-programming lattice optimum (75.94 s), because they can place apexes between the lattice points.
 4. **The calibrated 3D model lands close to the real race.** The best line runs 74.4–74.6 s on the Gran Risa; Marco Schwarz's fastest run 1 on 21 December 2025 was 76.00 s, 2% slower, a plausible gap between an optimal line and a real racer.
 
@@ -293,7 +293,7 @@ Each 0.01 of friction costs the optimized line about 1.2–1.6 s, so snow condit
 
 ## 6. Discussion
 
-**Evolution wins, and the objective is why.** CMA-ES on the true (hard) score is best or tied-best on every course, and Adam is never better than fourth. The cleanest evidence that the *objective* matters as much as the optimizer is CMA-ES itself: run on the smooth loss Adam uses, it falls to Adam's level on all three courses (Gran Risa 77.25 s vs. 74.80 s on the hard score).
+**Evolution wins the main comparison, and the objective is why.** CMA-ES on the true (hard) score is best or tied-best on every course, and Adam is never better than fourth. The cleanest evidence that the *objective* matters as much as the optimizer is CMA-ES itself: run on the smooth loss Adam uses, it falls to Adam's level on all three courses (Gran Risa 77.25 s vs. 74.80 s on the hard score). The ablations below trace that gap to two biased terms in the smooth loss; with both fixed, Adam comes within 0.1 s of CMA-ES on every course.
 
 **The smooth gate penalty is biased.** To make gate misses differentiable, the smooth loss adds λ · softplus(β·miss)² / β² per gate, with β = 5 /m and λ annealed from 0.1 to 100. Softplus is never exactly zero: a line passing *exactly* at the pass limit still pays (ln 2 / 5)² × 100 ≈ 1.9 s per gate at the final λ. So the methods that descend the smooth loss pass every gate wider than they need to. Their Gran Risa lines are 5–6 m longer than CMA-ES's (1317 m vs. 1311 m), and the logged runs show it directly: once every gate is passed, Adam's line gets *slower* as λ rises (DP → Adam: 77.7 s at λ ≈ 7.5, 82.2 s at λ = 100, with no gate missed). The hard score has no such bias, which is why CMA-ES, GA and the CMA-ES phase of the hybrid do not suffer from it.
 
@@ -338,9 +338,21 @@ On the trap course, the deceptive one, Adam with the margin penalty is now level
 
 On the Gran Risa it still ends almost 1 s worse, and the logs show why: its *first* logged line is already 1 s slower than the CMA-ES line it started from, so the smooth loss itself prefers a slower line there. The culprit is a second biased term that only exists in 3D: the smooth wall at the hard edge-angle limit (`edge_max`, 80.7°). It uses the shared wall sharpness (β = 20), which suits an excess in metres or g but is soft for one in radians, so a line 11° below the limit still pays for it. Evaluated on the saved champions with λ = 100, the smooth loss exceeds the hard score by 5.3 s on the DP → Adam line, and the edge wall alone charges CMA-ES's best line about 2.8 s more than Adam's, more than the 1.3 s CMA-ES's line actually saves. With a sharp edge wall (`sim3d.risk.wall_beta_edge` = 1146 /rad, i.e. 20 /deg) the smooth loss of the DP → Adam line is within 0.04 s of its hard score. (CMA-ES's line still costs more in the smooth loss, but only because it passes the gates closer than the 5 cm margin: about 0.25 s per gate, as intended.)
 
-*Ablation 4 (`configs/experiments/gran_risa_edgewall*.yaml`): margin penalty plus a sharp edge wall for Adam, CMA-ES on the smooth loss, the hybrid and DP → Adam on the Gran Risa. Running.*
+**Ablation 4: margin penalty plus a sharp edge wall** (`configs/experiments/gran_risa_edgewall*.yaml`; 3 seeds, same budgets). With both biases removed, the smooth loss and the hard score agree on the Gran Risa, and the gradient methods catch up:
 
-**When does gradient descent help?** Only for polishing inside the right basin, and only with an unbiased objective. Its gradients are cheap and exact (one step costs about 3 rollouts), but on the trap course and the Gran Risa it never got within 1% of the best line, and its answer depends on the start (the trap course's 12× larger spread across seeds).
+| method (Gran Risa) | E[score] (s) | T (s) | D (m) | β = 5, soft edge wall (10 seeds) |
+|---|---|---|---|---|
+| Adam | 74.88 ± 0.06 | 74.57 ± 0.06 | 1311.6 | 77.53 ± 0.24 |
+| CMA-ES (smooth) | 75.07 ± 0.07 | 74.76 ± 0.08 | 1312.2 | 77.25 ± 0.47 |
+| DP → Adam | 75.22 | 74.90 | 1312.6 | 76.21 (= DP) |
+| hybrid | *running* | | | 74.88 ± 0.10 |
+| *CMA-ES, hard score (reference)* | *74.80 ± 0.06* | *74.51 ± 0.06* | *1311.3* | |
+
+Every run is clean. Adam gains 2.65 s and now lands in the top group: against the 10-seed final runs it beats the GA (75.12 s; A12 = 1.0, p = 0.007), ties the hybrid (74.88 s; p = 0.94) and stays 0.08 s behind CMA-ES (A12 = 0.07, p = 0.03 uncorrected, with only 3 Adam seeds). Its lines are as short as CMA-ES's (1311.6 vs. 1311.3 m), and its peak loads (2.5–2.6 G) are the same. CMA-ES on the smooth loss improves too (77.25 → 75.07 s), so the smooth loss is now a good stand-in for the true score. DP → Adam improves on the DP line by 1.0 s.
+
+What remains is cost: Adam needs about 3,260 s of wall clock per run against about 150 s for CMA-ES, 20× more, for a line that is still slightly slower.
+
+**When does gradient descent help?** With the smooth loss as configured for the main runs, it never got within 1% of the best line on the trap course or the Gran Risa, and its answer depended on the start (the trap course's 12× larger spread across seeds). With an unbiased smooth loss it reaches CMA-ES's level on all three courses, with seed-to-seed spread as small as CMA-ES's. The cost is wall clock: a gradient step through a 1,300 m rollout is slow, and Adam takes about 20× longer than CMA-ES on the Gran Risa for a line that is still 0.08 s slower. Gradient descent is competitive here only once the smooth surrogate is exactly as good as the true score; any bias in the surrogate shows up one-for-one in its answer, while evolution on the true score is immune to it.
 
 **Why the DP matters.** It gives a global reference on a grid in about 4,800 rollouts and about 50 s, and it is the "discretize and search" approach classically used for racing lines. The continuous methods beating it by 1.1–1.4 s shows how much a 6 × 6 grid per gate leaves on the table.
 
@@ -357,10 +369,10 @@ On the Gran Risa it still ends almost 1 s worse, and the logs show why: its *fir
 
 ## 7. Conclusion and outlook
 
-A differentiable, calibrated simulator turns a GS racing line into a well-posed optimization problem. With a good line representation, evolution finds better lines than gradient descent, far sooner, on a plane, on a deceptive course and on the real Gran Risa, where the best line runs 74.5 s against the real winner's 76.00 s. Much of gradient descent's handicap comes from the smooth surrogate it needs, not from the gradient itself.
+A differentiable, calibrated simulator turns a GS racing line into a well-posed optimization problem. With a good line representation, evolution finds better lines than gradient descent, far sooner, on a plane, on a deceptive course and on the real Gran Risa, where the best line runs 74.5 s against the real winner's 76.00 s. Gradient descent's handicap came almost entirely from the smooth surrogate it needs, not from the gradient itself: a softplus gate penalty that charged lines inside the gates, and a soft wall at the edge-angle limit. With both made sharp (and a 5 cm margin on the gates), Adam reaches CMA-ES's level, but at about 20× the cost. Evolution's real advantage is that it optimizes the true score and so never has to get a surrogate right.
 
 Next steps:
-- an unbiased differentiable gate constraint (augmented Lagrangian or a hinge penalty), so the hybrid's gradient phase can actually polish;
+- the unbiased smooth loss (sharp gate penalty with margin, sharp edge wall) as the default for gradient methods, with the main comparison re-run on it at 10 seeds; an augmented Lagrangian would remove the need to pick a margin;
 - two controls (edge and lean) instead of curvature alone;
 - digitized real gate positions;
 - snow presets that change carving grip as well as glide;
