@@ -207,3 +207,10 @@ def test_course_plot_renders(tmp_path):
     out = tmp_path / "course.png"
     fig.savefig(out)
     assert out.stat().st_size > 10_000
+
+
+def test_deceptive_course_is_valid_and_has_a_rhythm_change():
+    spec = C.deceptive()
+    assert C.validate(spec, FIS) == []
+    radii = C.implied_radius(spec, 0.4)
+    assert radii.max() > 28 and radii.min() < 15  # a fast section, then a tight rhythm change

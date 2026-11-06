@@ -388,7 +388,31 @@ def easy() -> CourseSpec:
     )
 
 
-LIBRARY = {"easy": easy}
+def deceptive() -> CourseSpec:
+    """The trap course (PLAN.md §11): a gentle top, a steep 30 degree section with a quick, low-offset
+    rhythm (gates 19 m apart set for ~31 m turns), then a rhythm change into a large-offset pair of
+    gates needing ~16 m and ~14 m turns, then a normal 18 degree finish section. The greedy line
+    carries the steep section's speed into the rhythm change; the better line gives up time early."""
+    y_knots = np.array([0, 140, 170, 420, 450, 1100.0])
+    th = np.radians([16, 16, 30, 30, 18, 18])
+    spacing = np.array([26.0] * 5 + [19.0] * 13 + [32.0] * 2 + [25.0] * 16)
+    gate_y = 24.0 + np.concatenate([[0.0], np.cumsum(spacing)])
+    n = len(gate_y)
+    sides = np.where(np.arange(n) % 2 == 0, -1.0, 1.0)
+    radius = np.r_[np.full(5, 21.0), np.full(13, 26.0), np.full(2, 15.0), np.full(16, 21.0)]
+    dx = offsets_for_radius(spacing, radius, margin=0.7, min_offset=2.0)
+    gate_x = (sides * 0.5 * np.r_[dx[0], dx]).round(2)  # each gate half its incoming offset from centre
+    length = float(gate_y[-1] + 40)
+    keep = y_knots < length
+    return CourseSpec(
+        name="deceptive", length=length, y_knots=np.r_[y_knots[keep], length],
+        theta_knots=np.r_[th[keep], np.interp(length, y_knots, th)],
+        gate_y=gate_y, gate_x=gate_x, gate_side=sides, gate_width=np.full(n, 7.0),
+        gate_colour=["red" if i % 2 == 0 else "blue" for i in range(n)],
+    )
+
+
+LIBRARY = {"easy": easy, "deceptive": deceptive}
 
 
 def spec_from_config(spec: dict) -> CourseSpec:
