@@ -98,13 +98,29 @@ class Params3D(NamedTuple):
     edge_dnf: float = 1.0                # 1.0: edge angle above edge_max is a hard DNF
 
     @classmethod
-    def from_config(cls, cfg: dict) -> "Params3D":
+    def from_config(cls, cfg: dict, equipment: dict | None = None) -> "Params3D":
         r = cfg.get("sim3d", {}).get("risk")
         if not r:
             return cls()
-        return cls(edge_safe=np.radians(r["edge_safe_deg"]), c_edge=float(r["c_edge"]), beta_edge=float(r["beta_edge"]),
-                   edge_max=np.radians(r["edge_max_deg"]), c_air=float(r["c_air"]), n_min=float(r["n_min_g"]),
+        if "edge_safe_below_bootout_deg" in r:
+            from skiopt.config import load_equipment
+
+            boot = boot_out_angle(equipment or load_equipment())
+            edge_safe = boot - np.radians(r["edge_safe_below_bootout_deg"])
+            edge_max = boot + np.radians(r["edge_max_above_bootout_deg"])
+        else:
+            edge_safe, edge_max = np.radians(r["edge_safe_deg"]), np.radians(r["edge_max_deg"])
+        return cls(edge_safe=float(edge_safe), c_edge=float(r["c_edge"]), beta_edge=float(r["beta_edge"]),
+                   edge_max=float(edge_max), c_air=float(r["c_air"]), n_min=float(r["n_min_g"]),
                    beta_air=float(r["beta_air"]), airborne_dnf=float(r["airborne_dnf"]), edge_dnf=float(r["edge_dnf"]))
+
+
+def boot_out_angle(equipment: dict) -> float:
+    """Edge angle (rad) at which the boot sole edge touches the snow: atan(stack / overhang), where
+    the overhang is how far the boot sole sticks out past the ski edge, (sole width - waist) / 2."""
+    stack = float(equipment["stack_height_mm"]["heel"])
+    overhang = (float(equipment["boot_sole_width_mm"]) - float(equipment["ski_waist_mm"])) / 2.0
+    return float(np.arctan2(stack, overhang))
 
 
 # --- terrain interpolation (Catmull-Rom bicubic, C1) ---------------------------------------------

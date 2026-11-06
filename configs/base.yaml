@@ -55,16 +55,21 @@ arc:                      # apex-and-arc line (policy: arc), PLAN.md §6
 
 sim3d:                    # 3D stage (docs/ROADMAP_3D.md)
   k_turn: 0.18            # 3D carving loss (overrides physics.k_turn on 3D courses). Calibrated so the optimized
-                          # Gran Risa line matches the real race: DP-optimal time 69.6 s at 0.12, 73.1 s at 0.16,
-                          # 86.0 s at 0.25 -> ~76 s (Schwarz, run 1: 76.00 s) at 0.18
+                          # Gran Risa line matches the real race (Schwarz, run 1: 76.00 s). DP-optimal time with
+                          # boot-out at 75.7 deg (90 mm sole): 72.9 s at 0.16, 75.9 s at 0.18, 79.0 s at 0.20,
+                          # 81.9 s at 0.22
   terrain_smooth_m: 8.0   # Gaussian smoothing of the DTM: groomed snow has no metre-scale bumps. At 8 m the
                           # Gran Risa coach line unloads to 0.58 g at worst over rolls (2 m: airborne)
   risk:                   # 3D-only DNF terms (each switchable), on top of configs/risk.yaml
-    edge_safe_deg: 66.0   # edge angle atan(|F_lat| / N) where boot-out risk starts
-    c_edge: 0.005         # risk per metre per rad above edge_safe (boot-out ~70 deg: 49 mm stack, 65 mm waist).
-                          # Coach line: 0 -> 30% DNF (G-load alone), 0.005 -> 44%, 0.02 -> 72%
+    # Edge angle = atan(|F_lat| / N). The boot touches the snow at about
+    #   boot_out = atan(stack / ((boot sole width - ski waist) / 2))     (configs/equipment.yaml)
+    #            = atan(49 / ((90 - 65) / 2)) = 75.7 deg
+    # Risk starts `edge_safe_below_bootout_deg` before boot-out; a run ends outright
+    # `edge_max_above_bootout_deg` beyond it.
+    edge_safe_below_bootout_deg: 4.0
+    edge_max_above_bootout_deg: 5.0
+    c_edge: 0.005         # risk per metre per rad above edge_safe
     beta_edge: 20.0
-    edge_max_deg: 78.0    # hard DNF beyond this
     c_air: 0.01           # risk per metre per g of normal load below n_min (skis unloading over a roll)
     n_min_g: 0.2
     beta_air: 10.0
