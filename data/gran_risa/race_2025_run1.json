@@ -1,0 +1,15 @@
+{
+  "event": "Audi FIS Ski World Cup 2025/26, 5th Men's Giant Slalom, Alta Badia (ITA), Gran Risa, 21 Dec 2025",
+  "codex": "0045",
+  "source": "FIS official results run 1 and Results/Analysis/Standings PDFs (Longines timing), linked from https://www.fis-ski.com/DB/general/results.html?sectorcode=AL&raceid=127362",
+  "technical": {"start_altitude_m": 1868, "finish_altitude_m": 1420, "vertical_drop_m": 448,
+                "homologation": "12080/10/16", "gates": 52, "turning_gates": 51,
+                "course_setter_run1": "BRYANT Nathan (USA)", "start_time_run1": "10:00"},
+  "conditions_run1": {"sky": "mostly sunny", "snow": "hard", "temperature_start_c": -3.0, "temperature_finish_c": -2.0},
+  "intermediate_points": 3,
+  "intermediate_positions": "not published in the race documents",
+  "fastest_run1": {"athlete": "SCHWARZ Marco (AUT), bib 1", "int1_s": 22.25, "int2_s": 40.82, "int3_s": 56.93, "finish_s": 76.00,
+                   "sections_s": {"start-I1": 22.25, "I1-I2": 18.57, "I2-I3": 16.11, "I3-finish": 19.07}},
+  "run1_top5": [["SCHWARZ Marco", "AUT", 76.00], ["RADAMUS River", "USA", 76.64], ["BRENNSTEINER Stefan", "AUT", 76.67],
+                ["MCGRATH Atle Lie", "NOR", 76.96], ["PINHEIRO BRAATHEN Lucas", "BRA", 76.97]]
+}
