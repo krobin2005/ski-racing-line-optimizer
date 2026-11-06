@@ -28,6 +28,8 @@ python -m skiopt.analysis.plots --generated 7 --out figures/gen_7.png   # plot a
 python -m skiopt.analysis.risk_map --out figures/risk_map.png            # tune configs/risk.yaml
 python -m skiopt.run configs/experiments/baseline.yaml                  # day-6 gate: every spline method on the easy course
 python -m skiopt.analysis.summarize results/baseline                    # tables + race reports -> results/baseline/SUMMARY.md
+python -m skiopt.batch configs/experiments/final_easy.yaml --jobs 4     # many experiments: one job per (method, seed), N at a time
+python -m skiopt.analysis.gran_risa_figures results/gran_risa --out figures/gran_risa   # 3D: line on the map, run trace, splits
 ```
 
 Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest.json`, `progress.csv`, `champion.npz`, `telemetry.csv`. Finished runs are skipped on re-run. Figures and tables are rebuilt from saved results, never by re-running simulations.
@@ -61,5 +63,5 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | 3D simulator (camber, fall-away, rolls, compressions, edge angle) | Done, tested against analytic cases |
 | Gran Risa course set (52 gates / 51 turning, as in the 21 Dec 2025 race, run 1) | Done; calibrated so the optimized line matches the real 76.00 s |
 | DP global baseline ("discretize and search") | Done |
-| Gran Risa method comparison (7 methods, 3 seeds) | Running |
+| Final runs: 10 seeds, every method, on the easy course, the trap course and the Gran Risa (220 jobs via `python -m skiopt.batch`) | Running overnight, started Nov 5 ~21:00, about 8 h |
 | Neural controller | Stretch (cut first, see the roadmap) |
