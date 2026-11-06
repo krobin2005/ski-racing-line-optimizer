@@ -30,6 +30,8 @@ python -m skiopt.run configs/experiments/baseline.yaml                  # day-6 
 python -m skiopt.analysis.summarize results/baseline                    # tables + race reports -> results/baseline/SUMMARY.md
 python -m skiopt.batch configs/experiments/final_easy.yaml --jobs 4     # many experiments: one job per (method, seed), N at a time
 python -m skiopt.analysis.gran_risa_figures results/gran_risa --out figures/gran_risa   # 3D: line on the map, run trace, splits
+python -m skiopt.analysis.report_all                                  # every final report -> docs/reports/final_*
+python -m skiopt.analysis.sensitivity configs/experiments/gran_risa.yaml physics.mu 0.02 0.04 0.06 --out docs/reports/sensitivity_mu   # re-optimize at each value
 ```
 
 Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest.json`, `progress.csv`, `champion.npz`, `telemetry.csv`. Finished runs are skipped on re-run. Figures and tables are rebuilt from saved results, never by re-running simulations.
