@@ -16,12 +16,12 @@
 | Terrain pipeline | **Done.** South Tyrol DTM 2.5 m (the 0.5 m LiDAR has no data on the slope) + OSM piste line and outline. Matches the published drop (450 vs 448 m), length (~1.25 km), mean and max gradient. |
 | 3D dynamics | **Done.** Point mass on the real surface: camber / fall-away, rolls / compressions, edge angle, airborne check. Exact against analytic cases; gradients verified. 165 ms per 1,000 candidates. |
 | Gran Risa course set | **Done.** 52 gates / 51 turning gates as in the 21 Dec 2025 race, run 1 (setter N. Bryant, fastest run 76.00 s by M. Schwarz). FIS-valid, inside the real piste edges. |
-| 3D DNF model + calibration | **Done.** Boot-out risk from 66°, boot-out ≈ 70° from the 49 mm stack, hard DNF at 78°. Calibrated two ways: (1) course turn targets (mean 18 m) so the coach line runs the real race's pace, 76.2 s at 58.5 km/h vs 76.00 s at 58.6 km/h, under the 2D carving loss; (2) the 3D carving loss (`sim3d.k_turn` = 0.18) so the **optimized** line lands near the real 76 s. |
+| 3D DNF model + calibration | **Done.** Boot-out ≈ 75.7° from the 49 mm stack, 90 mm boot sole and 65 mm ski waist; risk from 71.7°, hard DNF at 80.7°. Calibrated two ways: (1) course turn targets (mean 18 m) so the coach line runs the real race's pace, 76.2 s at 58.5 km/h vs 76.00 s at 58.6 km/h, under the 2D carving loss; (2) the 3D carving loss (`sim3d.k_turn` = 0.18) so the **optimized** line lands near the real 76 s. |
 | DP global baseline | **Done** (`optim/dp.py`). |
-| Gran Risa method comparison | **Running.** |
+| Gran Risa method comparison | **Running** (10 seeds × 7 methods + coach line; `configs/experiments/gran_risa.yaml`). First results: 8 Adam seeds all finish clean, 76.9–77.6 s. |
 | Figures | `skiopt/analysis/gran_risa_figures.py`: line on the terrain map, along-course speed / G / edge / normal load. |
 
-**Open question:** with `k_turn` = 0.18 the unoptimized coach line slows to about 20 km/h in the flatter finish section. If the optimized lines do the same, the carving loss is too strong on flat ground and should be revisited.
+**Open question, partly answered:** with `k_turn` = 0.18 the unoptimized coach line slows to about 20 km/h in the flatter finish section. The optimized lines do not: they carry about 45 km/h there (Adam, DP). The official splits suggest Schwarz did about 49 km/h in the last section (REPORT.md §5.5), so the carving loss may still be slightly too strong on flat ground, but the gap is small.
 
 ## 1. What is (and isn't) available about the Gran Risa
 

@@ -63,7 +63,7 @@ This is a living outline. Numbers marked "(3 seeds)" are preliminary; the final 
    | Coach line | 94.9 s | 14.4% |
    | *Real fastest run 1 (Marco Schwarz)* | *76.00 s* | |
 
-   Peak edge angles of 68–69° sit just under the 70° boot-out angle.
+   Peak edge angles of 67–70° sit below where boot-out risk starts (71.7°; boot-out ≈ 75.7° from the 49 mm stack and 90 mm sole).
    - Remaining methods and seeds: pending.
    - Figures: `line_on_map_*.png`, `run_trace.png`.
 6. **Calibration story** (worth its own subsection): every constant tuned against a real target and documented.
