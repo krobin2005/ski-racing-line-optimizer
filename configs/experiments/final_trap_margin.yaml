@@ -1,0 +1,13 @@
+# Trap-course side of the penalty ablation (see gran_risa_margin.yaml): Adam and the hybrid with the
+# sharp penalty (beta = 200) and a 5 cm margin; the hybrid's Adam phase starts at full weight.
+experiment: final_trap_margin
+
+course: {kind: library, name: deceptive}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+
+methods:
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: hybrid, cma_fraction: 0.3, cmaes: {population: 32, sigma: 0.5}, adam: {lr: 0.05, lr_final: 0.005, lam_gate_start: 100.0}}
+
+seeds: [0, 1, 2]

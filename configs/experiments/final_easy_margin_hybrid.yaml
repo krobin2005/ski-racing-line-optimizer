@@ -1,0 +1,11 @@
+# Companion to final_easy_margin.yaml: the hybrid with the margin penalty (see gran_risa_margin_hybrid.yaml).
+experiment: final_easy_margin
+
+course: {kind: library, name: easy}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+
+methods:
+  - {name: hybrid, cma_fraction: 0.3, cmaes: {population: 32, sigma: 0.5}, adam: {lr: 0.05, lr_final: 0.005, lam_gate_start: 100.0}}
+
+seeds: [0, 1, 2]

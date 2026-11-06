@@ -311,7 +311,21 @@ Each 0.01 of friction costs the optimized line about 1.2–1.6 s, so snow condit
 
 So the bias explains most of the gradient methods' gap: unbiased, Adam's Gran Risa lines are 1.6–1.9 s faster than with β = 5 (1.0–1.3 s behind CMA-ES's 74.51 s), and on the easy course it reaches 44.73 s, level with CMA-ES's clean 44.76 s, apart from the millimetres it clips. Starting from the DP line at full weight, Adam takes a full second off it (75.94 → 74.97 s) while staying within 5.5 cm of every gate. What the gradient methods lack is an exact way to stay feasible, not a good direction to move in. CMA-ES on the smooth loss does not gain: on the Gran Risa it gets worse (79.73 ± 2.14 s vs. 77.06 s, with a wide spread over 3 seeds), and on the easy course it is unchanged within noise. We have not isolated why; one candidate is that the β = 5 penalty's pull towards the middle of each gate also steered CMA-ES's early search.
 
-*Ablation 2 (`configs/experiments/*_margin*.yaml`): the same sharp penalty measured to a gate window shrunk by 5 cm per side, so the overshoot lands inside the real gate. Running.*
+**Ablation 2: a sharp penalty with a 5 cm margin** (`configs/experiments/*_margin*.yaml`; 3 seeds). The smooth miss is measured to a gate window shrunk by 5 cm on each side (`objective.miss_margin`), so the small overshoot of ablation 1 lands inside the real gate. The hard score, and so every number below, still uses the real gate.
+
+| method | course | E[score] (s) | T (s) | clean | β = 5 (10 seeds) | CMA-ES, hard score |
+|---|---|---|---|---|---|---|
+| Adam | Gran Risa | 76.04 ± 0.04 | 75.84 ± 0.05 | 3 of 3 | 77.53 / 77.35 | 74.80 / 74.51 |
+| CMA-ES (smooth) | Gran Risa | 76.06 ± 0.15 | 75.86 ± 0.16 | 3 of 3 | 77.25 / 77.06 | |
+| DP → Adam | Gran Risa | 75.79 | 75.57 | yes | 76.21 / 75.94 (= DP) | |
+| Adam | easy | 45.37 ± 0.01 | 44.82 ± 0.02 | 3 of 3 | 45.67 / 45.10 | 45.29 / 44.76 |
+| CMA-ES (smooth) | easy | 46.00 ± 1.01 | 45.29 ± 0.75 | 3 of 3 | 45.91 / 45.25 | |
+
+Every run is now clean, and the gradient methods' Gran Risa lines are 1312.6 m long instead of 1317 m, close to CMA-ES's 1311.3 m. Adam's gap to CMA-ES on the hard score halves on the Gran Risa (2.7 → 1.2 s E[score]) and drops from 0.38 to 0.08 s on the easy course. The DP → Adam refinement now does what it was meant to: it improves on the DP line it starts from (75.94 → 75.57 s), the only time a gradient phase has beaten its starting point in this study. CMA-ES on the smooth loss now matches Adam on the Gran Risa (76.06 vs. 76.04 s); on the easy course two of its seeds are level with Adam and one (seed 1, 47.16) lands in a worse basin.
+
+So the gradient methods' handicap is mostly the constraint handling. What remains (Adam 1.2 s behind CMA-ES on the Gran Risa, at about 25× the wall-clock time) is the start-dependence of local search: Adam starts from a random perturbation of the default line (σ = 0.5), and the DP start ends 0.3 s better than those starts.
+
+*Ablation 3 (`configs/experiments/*_margin_hybrid.yaml`, `final_trap_margin.yaml`): the hybrid, with its Adam phase on the margin penalty at full weight from the start, on all three courses; and Adam on the trap course. Running.*
 
 **When does gradient descent help?** Only for polishing inside the right basin, and only with an unbiased objective. Its gradients are cheap and exact (one step costs about 3 rollouts), but on the trap course and the Gran Risa it never got within 1% of the best line, and its answer depends on the start (the trap course's 12× larger spread across seeds).
 
