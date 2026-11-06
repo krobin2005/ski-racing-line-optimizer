@@ -74,3 +74,66 @@ def test_same_seed_gives_the_same_champion(problem):
     prob, _, _ = problem
     runs = [METHODS["cmaes"](prob, SMALL["cmaes"], Budget(500), jax.random.key(3), NullLog()) for _ in range(2)]
     np.testing.assert_array_equal(np.asarray(runs[0][0]), np.asarray(runs[1][0]))
+
+
+# --- apex-and-arc line ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def arc_problem():
+    from skiopt.policies import ArcLine
+
+    cfg = load_config()
+    p, obj = SimParams.from_config(cfg), ObjParams.from_config(cfg)
+    spec = C.easy()
+    n = n_steps_for(spec.length, p.dy)
+    policy = ArcLine(n, spec=spec, x_start=spec.x_start, dy=p.dy, clearance=0.4, margin0=1.0)
+    prob = Problem(evaluate=make_evaluator(policy, p, n, obj), value_and_grad=make_value_and_grad(policy, p, n, obj),
+                   courses=stack_courses([C.to_course(spec)]), policy=policy, obj=obj)
+    return prob, p, n, spec
+
+
+def test_arc_zero_is_the_coach_line(arc_problem):
+    prob, _, _, spec = arc_problem
+    ay, ax = prob.policy.apexes(prob.policy.zero())
+    np.testing.assert_allclose(np.asarray(ay), spec.gate_y, atol=1e-4)            # on the gate lines
+    np.testing.assert_allclose(np.asarray(ax), spec.gate_x + spec.gate_side * 1.0, atol=1e-4)  # 1 m outside
+
+
+def test_arc_line_is_circular_arcs_and_followed_exactly(arc_problem):
+    prob, p, n, spec = arc_problem
+    policy = prob.policy
+    params = policy.zero()
+    _, traj = make_trajectory(policy, p, n)(params, C.to_course(spec))
+    assert np.abs(np.asarray(traj.telemetry.x) - np.asarray(policy.line(params))[:n]).max() < 0.05
+    # Within the first half-turn the curvature is constant (one circular arc).
+    k = np.asarray(policy.decode(params))
+    first = k[3:int(spec.gate_y[0] / 2) - 2]
+    assert np.ptp(first) < 0.05 * np.abs(first).mean()
+
+
+def test_arc_coach_line_passes_every_gate_and_gradients_are_finite(arc_problem):
+    prob, _, _, _ = arc_problem
+    ev = prob.evaluate(prob.policy.zero()[None], prob.courses)
+    assert int(ev.n_missed.sum()) == 0
+    _, grads = prob.value_and_grad(prob.policy.zero()[None] + 0.1, prob.courses)
+    assert np.all(np.isfinite(np.asarray(grads)))
+
+
+def test_apexes_stay_in_order_for_any_params(arc_problem):
+    prob, _, _, _ = arc_problem
+    for scale in (0.0, 5.0, 50.0):
+        params = scale * jax.random.normal(jax.random.key(4), (prob.policy.n_params,))
+        ay, ax = prob.policy.apexes(params)
+        assert np.all(np.diff(np.asarray(ay)) > 0)
+        outside = (np.asarray(ax) - np.asarray(prob.policy.pole_x)) * np.asarray(prob.policy.side)
+        assert np.all(outside >= 0.4 - 1e-6)  # always at least the body clearance outside the pole
+
+
+def test_coach_line_method_needs_the_arc_policy(problem, arc_problem):
+    prob_spline = problem[0]
+    with pytest.raises(ValueError):
+        METHODS["coach_line"](prob_spline, {}, Budget(10), jax.random.key(0), NullLog())
+    prob_arc = arc_problem[0]
+    best, score, _ = METHODS["coach_line"](prob_arc, {}, Budget(10), jax.random.key(0), NullLog())
+    assert score < 1000.0

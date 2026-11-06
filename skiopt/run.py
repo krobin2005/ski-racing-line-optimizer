@@ -38,8 +38,12 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
     course = course_lib.to_course(spec)
     courses = stack_courses([course])
     n_steps = n_steps_for(float(course.length), p.dy)
+    arc = cfg.get("arc", {})
     policy = make_policy(cfg["policy"], n_steps, length=spec.length, x_start=spec.x_start, dy=p.dy,
-                         knot_spacing=cfg.get("spline", {}).get("knot_spacing_m", 10.0))
+                         knot_spacing=cfg.get("spline", {}).get("knot_spacing_m", 10.0),
+                         spec=spec, clearance=p.risk.clearance, margin0=arc.get("margin0_m", 1.0),
+                         apex_shift=arc.get("apex_shift", True),
+                         shift_range=tuple(arc.get("shift_range_m", (-6.0, 2.0))))
     obj = ObjParams.from_config(cfg)
     prob = Problem(evaluate=make_evaluator(policy, p, n_steps, obj),
                    value_and_grad=make_value_and_grad(policy, p, n_steps, obj),

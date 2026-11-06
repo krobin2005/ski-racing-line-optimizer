@@ -1,0 +1,16 @@
+# The same day-6 comparison with the cubic spline line (control points every 15 m), kept as the
+# representation contrast for the report: the spline cannot draw an even GS turn at 20 m gate
+# spacing, so its lines "straighten, then hook" at the 12 m clip.
+experiment: baseline_spline
+
+course: {kind: library, name: easy}
+policy: spline
+
+methods:
+  - {name: fall_line}
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: cmaes, population: 32, sigma: 0.4}
+  - {name: cmaes_smooth, population: 32, sigma: 0.4}
+  - {name: ga, population: 128, sigma: 1.0, sigma_final: 0.02, p_mutate: 0.3}
+
+seeds: [0, 1, 2]

@@ -14,7 +14,9 @@ physics:
   cda: 0.3                # drag area, GS turning posture (m^2)
   rho: 1.0                # air density at altitude (kg/m^3)
   mu: 0.04                # ski-snow friction coefficient
-  k_turn: 0.03            # carving loss per unit |a_net| (placeholder)
+  k_turn: 0.08            # carving loss per unit |a_net|. Calibrated on the arc coach line: 0.03 let even
+                          # carved turns reach 111 km/h and 4.7 g on the easy course; 0.08 gives 72 km/h / 2.9% DNF
+                          # there and a median 52.6 km/h, 81 s, 5.7% DNF on 20 generated courses
   k_tight: 2.0            # loss coefficient for turns tighter than r_typical_lo. Day-6 calibration on the
                           # easy course (Adam, 4e4 evals): 0.5 -> 50.6 s, 66.8 km/h, 17% DNF; 2.0 -> 59.8 s,
                           # 56.5 km/h, 7% DNF (inside the realism and "sensible line" targets)
@@ -44,6 +46,11 @@ objective:                # PLAN.md §5; gate clearance comes from configs/fis_g
 spline:
   knot_spacing_m: 15.0    # one control point every 15 m (~58 for the easy course). 10 m gave CMA-ES too many
                           # dimensions (no clean line at 2e5 evals); 15 m: clean at 6e4, Adam unchanged
+
+arc:                      # apex-and-arc line (policy: arc), PLAN.md §6
+  margin0_m: 1.0          # default apex distance outside the turning pole: the coach line, and every start
+  apex_shift: true        # also optimize where each apex sits along the fall line
+  shift_range_m: [-6.0, 2.0]  # apex from 6 m above to 2 m below its gate line
 
 budget:
   spline_rollouts: 200000

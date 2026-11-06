@@ -194,7 +194,28 @@ Realism check, run once at the day-6 gate: on a standard generated course, a sen
 
 **Turn radius is measured as the average over each turn** (arc length ÷ heading change), matching how racers quote 18–22 m. The tightest point of each turn is reported separately.
 
-**Known limitation: turn shape.** In every setting, optimized lines run rounder than the band on average (about 28 m) and concentrate each turn into a short peak of about 14 m: "straighten, then hook." Stronger turn costs slow the skier but don't change this shape. The model has no limit on how fast curvature can change, so edge changes are free, while a real skier needs about 0.5–1 s to change edges. A curvature-rate limit (a maximum dκ/ds, or a cost on it) is the physically motivated fix. It is a proposed change for discussion and is not built.
+**Turn shape: found and fixed (November).** With the spline line, optimized lines "straightened, then hooked." Turns averaged about 28 m with peaks at the 12 m clip, and stronger turn costs didn't change that. The cause was the representation: a cubic spline with control points every 15 m cannot draw an even GS turn at 20 m gate spacing. Even a least-squares fit of a constant-radius coach line came out with 6–11 m spikes.
+
+The fix is a second representation, the **apex-and-arc line** (§6), now the main one. Head to head on the easy course at 6×10⁴ evaluations:
+
+| | Spline | Arc |
+| --- | --- | --- |
+| Time | 63–71 s | 44.8–45.6 s |
+| DNF risk | 7–31% | 1.5–1.9% |
+| Median average turn radius | ≈ 28 m | 21–22 m |
+| Tightest point of a turn | ≈ 13 m | ≈ 20 m |
+| Turns averaging 18–22 m | 3–11% | 31–77% |
+| GA | misses gates | finishes |
+
+The spline is kept as a contrast experiment (`configs/experiments/baseline_spline.yaml`).
+
+**Carving loss recalibrated.** k_turn went from 0.03 to 0.08. With even arcs, 0.03 let the skier reach 111 km/h and 4.7 g on the easy course; the spline lines had been slowed by the tight-turn cost instead. Effect on the arc coach line:
+
+| Course | Avg speed | DNF risk | Max G | Time |
+| --- | --- | --- | --- | --- |
+| Easy course | 72 km/h | 2.9% | 2.9 | — |
+| 20 generated courses (median) | 52.6 km/h | 5.7% | 3.2 | 81 s |
+
 
 Each physics and risk term has an on/off switch (`physics.terms.drag`, `risk.enabled`, …) for the analytic tests.
 
@@ -294,10 +315,14 @@ T_DNF = 1.5× a reference winning time, taken as course length ÷ 60 km/h (`obje
 All policies share one interface, `policy(params, obs, k) → κ`, and run through one rollout function.
 
 - **Spline (open-loop).** A cubic spline x(y) through control points every 10 m (`spline.knot_spacing_m`; about 88 for the easy course) is converted to ψ_k and κ_k with the same finite-difference scheme as the step function, so the conversion is exact until the 12 m clip (measured: within 2.5 cm, from the forced straight first metre). The start slope is clamped to 0 and the end is natural. The spline is precomputed as a basis matrix, so `decode(params)` is one matrix product.
+- **Apex-and-arc line (main representation, `policy: arc`).** One apex per turning gate; delay gates are passed on the traverse.
+    - Between successive apexes, the line is two equal circular arcs of radius R = (L² + w²) / 4w, with the inflection halfway. This is the same geometry the course generator uses to size offsets, so the curvature within each half-turn is constant.
+    - Per apex, two parameters: the distance outside the turning pole (clearance + softplus(u), so always outside it) and the apex position along the fall line (6 m above to 2 m below the gate line, via a sigmoid). For the easy course that is 68 parameters.
+    - Converted to curvature with the same exact scheme as the spline; the simulated skier tracks it within 2 cm. Gradients match finite differences.
 - **MLP (closed-loop).** 16 → 16 → 16 → 1, about 560 parameters. Output κ = (1/r_floor)·tanh(·).
     - Inputs (16): dx, dy, side and width for the next 3 gates; ψ, v, θ; distance to the nearer piste edge.
     - Inputs are normalized before the network: distances divided by 30 m, v by 25 m/s, angles left in radians. Without this, gate distances in the tens of metres swamp the other inputs.
-- **Coach line (baseline, no budget).** A hand-built racer's line: constant 20 m arcs, apex a fixed distance above each gate. It answers "do the optimizers beat a sensible human line?" for almost no work.
+- **Coach line (baseline, no budget).** The arc line's default: every apex 1 m outside its turning pole, on its gate line. It is also the common start for every optimizer on the arc line (equal starts, §9). It is only defined for the arc line, because the spline cannot draw it.
 
 ## 7. Project structure
 

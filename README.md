@@ -44,7 +44,7 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | `skiopt/objectives.py` | `evaluate` / `value_and_grad`; E[score] = P_finish·T + P_DNF·T_DNF; every DNF (missed gate, piste, G_max, v_stop) is a graded DQ in the hard score; softplus penalties + walls in the smooth loss |
 | `skiopt/analysis/plots.py` | Course plot: gates, piste, start/finish, line coloured by speed, pitch profile |
 | `skiopt/hazard.py`, `configs/risk.yaml` | DNF model: 4 hazard terms + hard limits, each switchable and tunable |
-| `skiopt/policies.py` | Open-loop curvature and the spline line (MLP and coach line to come) |
+| `skiopt/policies.py` | Open-loop curvature, the spline line, and the apex-and-arc line (main; its default is the coach line). MLP to come |
 | `skiopt/optim/` | `adam` (+ restarts), `cmaes`, `cmaes_smooth`, `ga`, `hybrid`, plus `fall_line` / `random_search` baselines; `registry.py` maps names to methods |
 | `skiopt/analysis/risk_map.py` | DNF risk of one turn over radius × speed, for tuning `risk.yaml` |
 | `skiopt/analysis/summarize.py` | `SUMMARY.md` + `summary.csv` from saved runs: headline table, pairwise tests, race reports, warnings |

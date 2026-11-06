@@ -98,7 +98,110 @@ class SplineLine:
         return kappa[k]
 
 
-POLICIES = {OpenLoopKappa.name: OpenLoopKappa, SplineLine.name: SplineLine}
+def curvature_from_line(x, dy):
+    """Exact curvature commands for a line sampled on the dy grid (length n_steps + 1), using the
+    step function's own scheme: psi_k = atan(dx/dy), ds_k = dy / cos(psi_k),
+    kappa_k = (psi_{k+1} - psi_k) / ds_k. The first heading is forced to 0 (the rollout starts there)."""
+    psi = jnp.arctan(jnp.diff(x) / dy)
+    psi = psi.at[0].set(0.0)
+    ds = dy / jnp.cos(psi)
+    return jnp.append(jnp.diff(psi) / ds[:-1], 0.0)
+
+
+class ArcLine:
+    """Apex-and-arc line: one apex per turning gate, joined by circular arcs (PLAN.md §6).
+
+    Between successive apexes (heading along the fall line at each), the line is two equal arcs of
+    radius R = (L^2 + w^2) / (4 w), with the inflection halfway. That is the geometry the course
+    generator uses to size offsets, so turn radius is constant within each half-turn instead of
+    peaking, and the line can only take shapes a carving skier could. After the last apex the line
+    runs straight to the finish. Delay gates are not apexes; the line passes them on its traverse.
+
+    params, per turning gate i (2 per gate, or 1 if apex_shift is off):
+      u_i  apex distance outside the turning pole: clearance + softplus(u_i)  (always outside it)
+      v_i  apex position along the fall line: gate_y + shift_lo + (shift_hi - shift_lo) * sigmoid(v_i)
+    zero() puts every apex `margin0` m outside its pole at its gate line: the coach line.
+    """
+
+    name = "arc"
+
+    def __init__(self, n_steps: int, spec=None, x_start: float = 0.0, dy: float = 1.0,
+                 clearance: float = 0.4, margin0: float = 1.0, apex_shift: bool = True,
+                 shift_range=(-6.0, 2.0), **_):
+        if spec is None:
+            raise ValueError("ArcLine needs the course spec (its apexes are the turning gates)")
+        import numpy as np
+
+        from skiopt.courses import turning_gates
+
+        t = turning_gates(spec.gate_side)
+        self.n_steps, self.dy, self.x_start = n_steps, dy, float(x_start)
+        self.apex_y = jnp.asarray(np.asarray(spec.gate_y, dtype=float)[t])
+        self.pole_x = jnp.asarray(np.asarray(spec.gate_x, dtype=float)[t])
+        self.side = jnp.asarray(np.asarray(spec.gate_side, dtype=float)[t])
+        self.n_apex = len(t)
+        self.clearance, self.margin0 = float(clearance), float(margin0)
+        self.apex_shift = bool(apex_shift)
+        self.shift_lo, self.shift_hi = map(float, shift_range)
+        self.grid = jnp.arange(n_steps + 1) * dy
+
+    @property
+    def n_params(self) -> int:
+        return self.n_apex * (2 if self.apex_shift else 1)
+
+    def zero(self):
+        """The coach line: every apex margin0 outside its pole, on its gate line."""
+        u0 = jnp.log(jnp.expm1(self.margin0 - self.clearance))  # inverse softplus
+        v0 = jnp.log(-self.shift_lo / self.shift_hi) if self.shift_hi > 0 else 0.0  # sigmoid -> shift 0
+        parts = [jnp.full((self.n_apex,), u0)]
+        if self.apex_shift:
+            parts.append(jnp.full((self.n_apex,), v0))
+        return jnp.concatenate(parts)
+
+    def init(self, key, sigma: float = 0.0):
+        return self.zero() + sigma * jax.random.normal(key, (self.n_params,))
+
+    def apexes(self, params):
+        u = params[: self.n_apex]
+        ax = self.pole_x + self.side * (self.clearance + jax.nn.softplus(u))
+        ay = self.apex_y
+        if self.apex_shift:
+            v = params[self.n_apex:]
+            ay = ay + self.shift_lo + (self.shift_hi - self.shift_lo) * jax.nn.sigmoid(v)
+        return ay, ax
+
+    def line(self, params):
+        ay, ax = self.apexes(params)
+        ys = jnp.concatenate([jnp.zeros(1), ay])
+        xs = jnp.concatenate([jnp.full(1, self.x_start), ax])
+        t = self.grid
+        i = jnp.clip(jnp.searchsorted(ys, t, side="right") - 1, 0, self.n_apex - 1)
+        ya, yb, xa, xb = ys[i], ys[i + 1], xs[i], xs[i + 1]
+        L = yb - ya
+        d = xb - xa
+        w = jnp.sqrt(d**2 + 1e-8)
+        R = (L**2 + w**2) / (4 * w)
+        # R - sqrt(R^2 - u^2) written as u^2 / (R + sqrt(R^2 - u^2)): stable when w -> 0 (R -> inf).
+        # u is clamped to [0, L/2] (where R >= L/2 keeps the root real) so the branch jnp.where
+        # discards never produces an infinite gradient that would turn into NaN.
+        def bulge(u):
+            u = jnp.clip(u, 0.0, L / 2)
+            return u**2 / (R + jnp.sqrt(jnp.maximum(R**2 - u**2, 1e-9)))
+
+        first_half = t < ya + L / 2
+        x_arc = jnp.where(first_half, xa + (d / w) * bulge(t - ya), xb - (d / w) * bulge(yb - t))
+        return jnp.where(t >= ys[-1], xs[-1], x_arc)
+
+    def decode(self, params):
+        return curvature_from_line(self.line(params), self.dy)
+
+    @staticmethod
+    def act(kappa, obs, k):
+        del obs
+        return kappa[k]
+
+
+POLICIES = {OpenLoopKappa.name: OpenLoopKappa, SplineLine.name: SplineLine, ArcLine.name: ArcLine}
 
 
 def make_policy(name: str, n_steps: int, **kwargs):
