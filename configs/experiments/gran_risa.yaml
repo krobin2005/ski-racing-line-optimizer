@@ -13,5 +13,7 @@ methods:
   - {name: cmaes_smooth, population: 32, sigma: 0.5}
   - {name: ga, population: 128, sigma: 1.0, sigma_final: 0.02, p_mutate: 0.3}
   - {name: hybrid, cma_fraction: 0.3, cmaes: {population: 32, sigma: 0.5}, adam: {lr: 0.05, lr_final: 0.005}}
+  - {name: dp}                                                     # lattice global search alone
+  - {name: dp, label: dp_adam, refine: adam, adam: {lr: 0.05, lr_final: 0.005}}  # global then local
 
 seeds: [0, 1, 2]
