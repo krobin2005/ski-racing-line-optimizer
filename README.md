@@ -21,7 +21,7 @@ Tested with Python 3.13 and 3.14 (JAX 0.11.2, evosax 0.3.1). Every pinned packag
 ## Running
 
 ```bash
-pytest                                                   # run the tests (~40 s)
+pytest                                                   # run the tests (97 tests, ~4 min)
 python -m skiopt.run configs/experiments/smoke.yaml      # pipeline smoke test; add --force to re-run
 python -m skiopt.bench                                   # evaluation speed vs. the < 50 ms / 1,000 target
 python -m skiopt.analysis.plots --generated 7 --out figures/gen_7.png   # plot a course (or --library easy, --run <dir>)
