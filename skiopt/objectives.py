@@ -118,7 +118,7 @@ def stack_courses(courses: list[Course]) -> Course:
     return jax.tree.map(lambda *xs: jnp.stack(xs), *courses)
 
 
-def make_evaluator(policy, p: SimParams, n_steps: int, obj: ObjParams | None = None):
+def make_evaluator(policy, p: SimParams, n_steps: int, obj: ObjParams | None = None, rollout_fn=rollout):
     """Return `evaluate(params_batch, courses, obj=None) -> Evaluation` (jitted).
 
     params_batch has shape (B, n_params); courses is a stacked Course with leading axis C.
@@ -127,7 +127,7 @@ def make_evaluator(policy, p: SimParams, n_steps: int, obj: ObjParams | None = N
     default_obj = obj or ObjParams()
 
     def one(params, course, o):
-        summary, _ = rollout(policy.act, policy.decode(params), course, p, n_steps)
+        summary, _ = rollout_fn(policy.act, policy.decode(params), course, p, n_steps)
         return score(summary, course, o), summary
 
     over_courses = jax.vmap(one, in_axes=(None, 0, None))
@@ -144,19 +144,19 @@ def make_evaluator(policy, p: SimParams, n_steps: int, obj: ObjParams | None = N
     return evaluate
 
 
-def make_trajectory(policy, p: SimParams, n_steps: int):
+def make_trajectory(policy, p: SimParams, n_steps: int, rollout_fn=rollout):
     """Jitted single-candidate rollout returning (Summary, StepOutput) for telemetry."""
-    return jax.jit(lambda params, course: rollout(policy.act, policy.decode(params), course, p, n_steps))
+    return jax.jit(lambda params, course: rollout_fn(policy.act, policy.decode(params), course, p, n_steps))
 
 
-def make_value_and_grad(policy, p: SimParams, n_steps: int, obj: ObjParams | None = None):
+def make_value_and_grad(policy, p: SimParams, n_steps: int, obj: ObjParams | None = None, rollout_fn=rollout):
     """Return `vg(params_batch, courses, obj=None) -> (smooth_loss (B,), grads (B, n_params))`
     (jitted): the gradient of each candidate's course-averaged smooth loss, for gradient methods."""
     default_obj = obj or ObjParams()
 
     def loss(params, courses, o):
         def one(course):
-            summary, _ = rollout(policy.act, policy.decode(params), course, p, n_steps)
+            summary, _ = rollout_fn(policy.act, policy.decode(params), course, p, n_steps)
             return score(summary, course, o).smooth_loss
         return jnp.mean(jax.vmap(one)(courses))
 

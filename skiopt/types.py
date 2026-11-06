@@ -138,6 +138,9 @@ class Telemetry(NamedTuple):
     a_net: jnp.ndarray   # signed lateral load the snow must supply (m/s^2)
     G: jnp.ndarray       # total load in g
     theta: jnp.ndarray   # pitch (rad)
+    z: jnp.ndarray = 0.0       # 3D only: terrain height (m)
+    N_load: jnp.ndarray = 0.0  # 3D only: normal load per unit mass (m/s^2); < 0 means airborne
+    edge: jnp.ndarray = 0.0    # 3D only: edge angle atan(|F_lat| / N) (rad)
 
 
 class StepOutput(NamedTuple):

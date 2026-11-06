@@ -98,14 +98,23 @@ class SplineLine:
         return kappa[k]
 
 
-def curvature_from_line(x, dy):
+def curvature_from_line(x, dy, kappa_c=None):
     """Exact curvature commands for a line sampled on the dy grid (length n_steps + 1), using the
-    step function's own scheme: psi_k = atan(dx/dy), ds_k = dy / cos(psi_k),
-    kappa_k = (psi_{k+1} - psi_k) / ds_k. The first heading is forced to 0 (the rollout starts there)."""
-    psi = jnp.arctan(jnp.diff(x) / dy)
+    step function's own scheme. In 2D: psi_k = atan(dx/dy), ds_k = dy / cos(psi_k),
+    kappa_k = (psi_{k+1} - psi_k) / ds_k. With a curving course frame (3D, kappa_c per step), the
+    scale factor h = 1 - x kappa_c enters and the frame's own turning is added back:
+    psi_k = atan(dx / (h dy)), d_sigma_k = h dy / cos(psi_k), kappa_k = (dpsi_k + kappa_c dy) / d_sigma_k.
+    The first heading is forced to 0 (the rollout starts there)."""
+    if kappa_c is None:
+        h, kc = 1.0, 0.0
+    else:
+        kc = kappa_c[: x.shape[0] - 1]
+        h = jnp.maximum(1.0 - x[:-1] * kc, 0.2)
+    psi = jnp.arctan(jnp.diff(x) / (h * dy))
     psi = psi.at[0].set(0.0)
-    ds = dy / jnp.cos(psi)
-    return jnp.append(jnp.diff(psi) / ds[:-1], 0.0)
+    d_sigma = h * dy / jnp.cos(psi)
+    turn = jnp.diff(psi) + (kc[:-1] * dy if kappa_c is not None else 0.0)
+    return jnp.append(turn / d_sigma[:-1], 0.0)
 
 
 class ArcLine:
@@ -127,7 +136,7 @@ class ArcLine:
 
     def __init__(self, n_steps: int, spec=None, x_start: float = 0.0, dy: float = 1.0,
                  clearance: float = 0.4, margin0: float = 1.0, apex_shift: bool = True,
-                 shift_range=(-6.0, 2.0), **_):
+                 shift_range=(-6.0, 2.0), kappa_c=None, **_):
         if spec is None:
             raise ValueError("ArcLine needs the course spec (its apexes are the turning gates)")
         import numpy as np
@@ -144,6 +153,8 @@ class ArcLine:
         self.apex_shift = bool(apex_shift)
         self.shift_lo, self.shift_hi = map(float, shift_range)
         self.grid = jnp.arange(n_steps + 1) * dy
+        # 3D: curvature of the course frame per step, for the curvilinear conversion.
+        self.kappa_c = None if kappa_c is None else jnp.asarray(np.resize(np.asarray(kappa_c, float), n_steps + 1))
 
     @property
     def n_params(self) -> int:
@@ -193,7 +204,7 @@ class ArcLine:
         return jnp.where(t >= ys[-1], xs[-1], x_arc)
 
     def decode(self, params):
-        return curvature_from_line(self.line(params), self.dy)
+        return curvature_from_line(self.line(params), self.dy, self.kappa_c)
 
     @staticmethod
     def act(kappa, obs, k):

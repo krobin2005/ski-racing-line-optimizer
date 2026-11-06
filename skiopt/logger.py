@@ -121,6 +121,10 @@ class RunLogger:
             "v": tel.v, "psi": tel.psi, "kappa": tel.kappa, "a_net": tel.a_net, "G": tel.G,
             "theta": tel.theta, "dt": traj.dt, "ds": traj.ds,
         }
+        for name in ("z", "N_load", "edge"):  # 3D runs only
+            value = np.asarray(getattr(tel, name))
+            if value.ndim:
+                cols[name] = value
         cols = {k: np.asarray(v)[active] for k, v in cols.items()}
         with open(self.path / "telemetry.csv", "w", newline="") as f:
             w = csv.writer(f)

@@ -23,8 +23,23 @@ from skiopt.objectives import ObjParams, make_evaluator, make_trajectory, make_v
 from skiopt.optim.common import Problem
 from skiopt.optim.registry import METHODS
 from skiopt.policies import make_policy
-from skiopt.rollout import n_steps_for
+from skiopt.rollout import n_steps_for, rollout
 from skiopt.types import SimParams
+
+
+def build_course(cfg: dict):
+    """(course, spec, rollout_fn, frame curvature or None). 2D courses come from skiopt.courses;
+    `kind: gran_risa` builds the 3D Gran Risa (skiopt.course3d) and runs on the 3D simulator."""
+    spec_cfg = cfg["course"]
+    if spec_cfg["kind"] == "gran_risa":
+        from skiopt import sim3d
+        from skiopt.course3d import build_gran_risa
+
+        b = build_gran_risa(seed=int(spec_cfg.get("seed", 0)),
+                            smooth_m=float(cfg.get("sim3d", {}).get("terrain_smooth_m", 8.0)))
+        return b.course, b.spec, sim3d.rollout3d, b.frame.kappa
+    spec = course_lib.spec_from_config(spec_cfg)
+    return course_lib.to_course(spec), spec, rollout, None
 
 
 def run_experiment(experiment_path: str, force: bool = False, results_dir: str | None = None) -> list[dict]:
@@ -34,8 +49,7 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
     equipment = load_equipment()
     p = SimParams.from_config(cfg)
 
-    spec = course_lib.spec_from_config(cfg["course"])
-    course = course_lib.to_course(spec)
+    course, spec, rollout_fn, kappa_c = build_course(cfg)
     courses = stack_courses([course])
     n_steps = n_steps_for(float(course.length), p.dy)
     arc = cfg.get("arc", {})
@@ -43,12 +57,12 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
                          knot_spacing=cfg.get("spline", {}).get("knot_spacing_m", 10.0),
                          spec=spec, clearance=p.risk.clearance, margin0=arc.get("margin0_m", 1.0),
                          apex_shift=arc.get("apex_shift", True),
-                         shift_range=tuple(arc.get("shift_range_m", (-6.0, 2.0))))
+                         shift_range=tuple(arc.get("shift_range_m", (-6.0, 2.0))), kappa_c=kappa_c)
     obj = ObjParams.from_config(cfg)
-    prob = Problem(evaluate=make_evaluator(policy, p, n_steps, obj),
-                   value_and_grad=make_value_and_grad(policy, p, n_steps, obj),
+    prob = Problem(evaluate=make_evaluator(policy, p, n_steps, obj, rollout_fn),
+                   value_and_grad=make_value_and_grad(policy, p, n_steps, obj, rollout_fn),
                    courses=courses, policy=policy, obj=obj)
-    trajectory = make_trajectory(policy, p, n_steps)
+    trajectory = make_trajectory(policy, p, n_steps, rollout_fn)
 
     report = []
     for method in cfg["methods"]:

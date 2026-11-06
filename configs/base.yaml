@@ -52,6 +52,10 @@ arc:                      # apex-and-arc line (policy: arc), PLAN.md §6
   apex_shift: true        # also optimize where each apex sits along the fall line
   shift_range_m: [-6.0, 2.0]  # apex from 6 m above to 2 m below its gate line
 
+sim3d:                    # 3D stage (docs/ROADMAP_3D.md)
+  terrain_smooth_m: 8.0   # Gaussian smoothing of the DTM: groomed snow has no metre-scale bumps. At 8 m the
+                          # Gran Risa coach line unloads to 0.58 g at worst over rolls (2 m: airborne)
+
 budget:
   spline_rollouts: 200000
   controller_rollouts: 2000000

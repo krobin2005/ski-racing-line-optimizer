@@ -423,6 +423,10 @@ def spec_from_config(spec: dict) -> CourseSpec:
         return generate(int(spec["seed"]))
     if kind == "library":
         return LIBRARY[spec["name"]]()
+    if kind == "gran_risa":  # 3D course; the spec holds its gates in course coordinates (s, n)
+        from skiopt.course3d import build_gran_risa
+
+        return build_gran_risa(seed=int(spec.get("seed", 0)), smooth_m=float(spec.get("smooth_m", 8.0))).spec
     raise ValueError(f"unknown course kind {kind!r}")
 
 
