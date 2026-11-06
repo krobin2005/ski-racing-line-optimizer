@@ -50,11 +50,26 @@ spline:
 arc:                      # apex-and-arc line (policy: arc), PLAN.md §6
   margin0_m: 1.0          # default apex distance outside the turning pole: the coach line, and every start
   apex_shift: true        # also optimize where each apex sits along the fall line
-  shift_range_m: [-6.0, 2.0]  # apex from 6 m above to 2 m below its gate line
+  shift_range_m: [-6.0, 3.0]  # apex from 6 m above to 3 m below its gate line (Gran Risa CMA-ES lines
+                              # pushed apexes to the old +2 m bound in the steep section)
 
 sim3d:                    # 3D stage (docs/ROADMAP_3D.md)
+  k_turn: 0.18            # 3D carving loss (overrides physics.k_turn on 3D courses). Calibrated so the optimized
+                          # Gran Risa line matches the real race: DP-optimal time 69.6 s at 0.12, 73.1 s at 0.16,
+                          # 86.0 s at 0.25 -> ~76 s (Schwarz, run 1: 76.00 s) at 0.18
   terrain_smooth_m: 8.0   # Gaussian smoothing of the DTM: groomed snow has no metre-scale bumps. At 8 m the
                           # Gran Risa coach line unloads to 0.58 g at worst over rolls (2 m: airborne)
+  risk:                   # 3D-only DNF terms (each switchable), on top of configs/risk.yaml
+    edge_safe_deg: 66.0   # edge angle atan(|F_lat| / N) where boot-out risk starts
+    c_edge: 0.005         # risk per metre per rad above edge_safe (boot-out ~70 deg: 49 mm stack, 65 mm waist).
+                          # Coach line: 0 -> 30% DNF (G-load alone), 0.005 -> 44%, 0.02 -> 72%
+    beta_edge: 20.0
+    edge_max_deg: 78.0    # hard DNF beyond this
+    c_air: 0.01           # risk per metre per g of normal load below n_min (skis unloading over a roll)
+    n_min_g: 0.2
+    beta_air: 10.0
+    airborne_dnf: 1.0     # 1: a negative normal load (airborne) is a hard DNF
+    edge_dnf: 1.0         # 1: edge angle above edge_max is a hard DNF
 
 budget:
   spline_rollouts: 200000

@@ -80,17 +80,31 @@ class Course3D(NamedTuple):
 
 
 class Params3D(NamedTuple):
-    """3D-only constants (configs/base.yaml, `sim3d:`); the shared ones stay in SimParams."""
+    """3D-only risk constants (configs/base.yaml, `sim3d.risk`); the shared ones stay in SimParams.
 
-    edge_max: float = np.radians(70.0)   # boot-out: beyond this edge angle the boot touches the snow
+    Boot-out: the boot touches the snow at about atan(stack / (boot half-width - ski half-waist)):
+    49 mm stack, ~100 mm boot sole (assumed) and a 65 mm GS waist give atan(49 / 17.5) = 70 deg.
+    Racers reach the low 70s by angulating, so this is a steep hazard around boot-out, not an
+    instant DNF; only `edge_max` (well beyond it) ends the run outright."""
+
+    edge_safe: float = np.radians(66.0)  # edge-angle hazard starts here
     c_edge: float = 0.0                  # hazard per metre per rad of edge angle above edge_safe
-    edge_safe: float = np.radians(62.0)
     beta_edge: float = 20.0
+    edge_max: float = np.radians(78.0)   # hard DNF: no ski holds beyond this
     c_air: float = 0.0                   # hazard per metre per g of unloading below n_min
     n_min: float = 0.2                   # normal load (g) below which the skis lose grip
     beta_air: float = 10.0
     airborne_dnf: float = 1.0            # 1.0: a negative normal load (airborne) is a hard DNF
-    edge_dnf: float = 1.0                # 1.0: edge angle above edge_max (boot-out) is a hard DNF
+    edge_dnf: float = 1.0                # 1.0: edge angle above edge_max is a hard DNF
+
+    @classmethod
+    def from_config(cls, cfg: dict) -> "Params3D":
+        r = cfg.get("sim3d", {}).get("risk")
+        if not r:
+            return cls()
+        return cls(edge_safe=np.radians(r["edge_safe_deg"]), c_edge=float(r["c_edge"]), beta_edge=float(r["beta_edge"]),
+                   edge_max=np.radians(r["edge_max_deg"]), c_air=float(r["c_air"]), n_min=float(r["n_min_g"]),
+                   beta_air=float(r["beta_air"]), airborne_dnf=float(r["airborne_dnf"]), edge_dnf=float(r["edge_dnf"]))
 
 
 # --- terrain interpolation (Catmull-Rom bicubic, C1) ---------------------------------------------
@@ -242,47 +256,54 @@ def step(state: State3D, kappa_cmd, s, grid: Grid3D, p: SimParams):
     return State3D(n_new, psi_new, v_new), dict(L, dt=dt, d_ell=d_ell, G=G, edge=edge, kappa_h=kappa_h)
 
 
+def advance(state: State3D, kappa_cmd, k, course: Course3D, p: SimParams, p3: Params3D = Params3D()):
+    """One course step k with full bookkeeping: dynamics, hazards, hard limits, walls, telemetry.
+    Shared by the full rollout and by segment simulations (optim/dp.py), so both use identical physics."""
+    grid = course.terrain
+    dtype = jnp.result_type(float)
+    r = p.risk
+    s = k * grid.ds
+    new_state, o = step(state, kappa_cmd, s, grid, p)
+    active = (s < course.length).astype(dtype)
+    new_state = jax.tree.map(lambda a, b: jnp.where(active > 0, a, b), new_state, state)
+    k_req = hazard.kappa_required(state.n, s, state.psi, course, r.clearance, r.kappa_req_cap)
+    h4 = hazard.hazard_terms(o["G"], o["kappa_g"], k_req, state.v, s, r)
+    # 3D-only hazards fold into the "load" column (edge/unloading are load failures).
+    h_edge = p3.c_edge * softplus_b(o["edge"] - p3.edge_safe, p3.beta_edge)
+    h_air = p3.c_air * softplus_b(p3.n_min - o["N"] / p.g, p3.beta_air)
+    h4 = h4.at[0].add(h_edge + h_air)
+    # G and speed limits from the shared hazard code; the piste check uses the real edges.
+    broken, wall = hazard.hard_limits(o["G"], state.v, jnp.zeros_like(state.n), jnp.inf, r)
+    if course.piste_lo is None:
+        out_by = jnp.abs(state.n) - course.piste_half_width
+    else:
+        s_rows = jnp.arange(course.piste_lo.shape[0]) * grid.ds
+        out_by = jnp.maximum(jnp.interp(s, s_rows, course.piste_lo) - state.n,
+                             state.n - jnp.interp(s, s_rows, course.piste_hi))
+    broken = jnp.maximum(broken, (r.piste_on * (out_by > 0)).astype(dtype))
+    wall = wall + r.wall_weight * r.piste_on * softplus_b(out_by, r.wall_beta)
+    air = p3.airborne_dnf * (o["N"] < 0)
+    boot = p3.edge_dnf * (o["edge"] > p3.edge_max)
+    broken = jnp.maximum(broken, jnp.maximum(air, boot).astype(dtype))
+    wall = wall + r.wall_weight * (p3.airborne_dnf * softplus_b(-o["N"] / p.g, r.wall_beta)
+                                   + p3.edge_dnf * softplus_b(o["edge"] - p3.edge_max, r.wall_beta))
+    d_ell = o["d_ell"] * active
+    tel = Telemetry(x=state.n, y=s, psi=state.psi, v=state.v, kappa=o["kappa_g"], a_net=o["F_lat"],
+                    G=o["G"], theta=o["pitch"], z=o["z"], N_load=o["N"], edge=o["edge"])
+    out = StepOutput(dt=o["dt"] * active, ds=d_ell, active=active, telemetry=tel, hazard=h4 * d_ell,
+                     hard_dnf=broken * active, wall=wall * d_ell, kappa_req=k_req)
+    return new_state, out
+
+
 def rollout3d(policy_act, params, course: Course3D, p: SimParams, n_steps: int, p3: Params3D = Params3D()):
     """Fixed-length scan over s; returns (Summary, StepOutput) exactly like the 2D rollout, so the
     objectives, evaluator, optimizers and logger are unchanged."""
     grid = course.terrain
     dtype = jnp.result_type(float)
     state0 = State3D(jnp.asarray(course.x_start, dtype), jnp.zeros((), dtype), jnp.asarray(p.v0, dtype))
-    r = p.risk
 
     def body(state, k):
-        s = k * grid.ds
-        kappa_cmd = policy_act(params, None, k)
-        new_state, o = step(state, kappa_cmd, s, grid, p)
-        active = (s < course.length).astype(dtype)
-        new_state = jax.tree.map(lambda a, b: jnp.where(active > 0, a, b), new_state, state)
-        k_req = hazard.kappa_required(state.n, s, state.psi, course, r.clearance, r.kappa_req_cap)
-        h4 = hazard.hazard_terms(o["G"], o["kappa_g"], k_req, state.v, s, r)
-        # 3D-only hazards fold into the "load" column (edge/unloading are load failures).
-        h_edge = p3.c_edge * softplus_b(o["edge"] - p3.edge_safe, p3.beta_edge)
-        h_air = p3.c_air * softplus_b(p3.n_min - o["N"] / p.g, p3.beta_air)
-        h4 = h4.at[0].add(h_edge + h_air)
-        # G and speed limits from the shared hazard code; the piste check uses the real edges.
-        broken, wall = hazard.hard_limits(o["G"], state.v, jnp.zeros_like(state.n), jnp.inf, r)
-        if course.piste_lo is None:
-            out_by = jnp.abs(state.n) - course.piste_half_width
-        else:
-            s_rows = jnp.arange(course.piste_lo.shape[0]) * grid.ds
-            out_by = jnp.maximum(jnp.interp(s, s_rows, course.piste_lo) - state.n,
-                                 state.n - jnp.interp(s, s_rows, course.piste_hi))
-        broken = jnp.maximum(broken, (r.piste_on * (out_by > 0)).astype(dtype))
-        wall = wall + r.wall_weight * r.piste_on * softplus_b(out_by, r.wall_beta)
-        air = p3.airborne_dnf * (o["N"] < 0)
-        boot = p3.edge_dnf * (o["edge"] > p3.edge_max)
-        broken = jnp.maximum(broken, jnp.maximum(air, boot).astype(dtype))
-        wall = wall + r.wall_weight * (p3.airborne_dnf * softplus_b(-o["N"] / p.g, r.wall_beta)
-                                       + p3.edge_dnf * softplus_b(o["edge"] - p3.edge_max, r.wall_beta))
-        d_ell = o["d_ell"] * active
-        tel = Telemetry(x=state.n, y=s, psi=state.psi, v=state.v, kappa=o["kappa_g"], a_net=o["F_lat"],
-                        G=o["G"], theta=o["pitch"], z=o["z"], N_load=o["N"], edge=o["edge"])
-        out = StepOutput(dt=o["dt"] * active, ds=d_ell, active=active, telemetry=tel, hazard=h4 * d_ell,
-                         hard_dnf=broken * active, wall=wall * d_ell, kappa_req=k_req)
-        return new_state, out
+        return advance(state, policy_act(params, None, k), k, course, p, p3)
 
     final, traj = jax.lax.scan(body, state0, jnp.arange(n_steps))
     T = jnp.sum(traj.dt)

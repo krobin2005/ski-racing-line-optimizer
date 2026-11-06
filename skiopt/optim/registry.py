@@ -1,6 +1,7 @@
 """Method name -> optimizer function, as used in experiment files."""
 
 from skiopt.optim.baselines import coach_line, fall_line, random_search
+from skiopt.optim.dp import dp
 from skiopt.optim.evo import cmaes, cmaes_smooth, ga
 from skiopt.optim.gradient import adam
 from skiopt.optim.hybrid import hybrid
@@ -14,4 +15,5 @@ METHODS = {
     "cmaes_smooth": cmaes_smooth,
     "ga": ga,
     "hybrid": hybrid,
+    "dp": dp,
 }

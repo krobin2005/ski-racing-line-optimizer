@@ -26,6 +26,9 @@ class Problem:
     courses: Course            # stacked, leading axis C
     policy: object
     obj: ObjParams
+    sim_params: object = None  # SimParams, for methods that simulate pieces of a run (optim/dp.py)
+    n_steps: int | None = None
+    params3d: object = None    # sim3d.Params3D on 3D courses
 
     @property
     def n_courses(self) -> int:

@@ -64,9 +64,21 @@ def _surface_distance(frame, Zc):
     return np.r_[0.0, np.cumsum(np.hypot(np.diff(frame.s), np.diff(Zc)))]
 
 
-def build_gran_risa(seed: int = 0, smooth_m: float = 4.0, race: dict = RACE_2025_RUN1, fis: dict | None = None,
-                    max_attempts: int = 400) -> Course3DBuild:
-    fis = fis or C.load_fis()
+# Turn targets for the Gran Risa set (mean, sd, lo, hi), and the minimum turn in horizontal course
+# coordinates. Calibrated so the unoptimized coach line reproduces the real race: mean 18 m gives
+# 76.2 s at 58.5 km/h vs. the real fastest run 76.00 s at 58.6 km/h (20 m: 64 s; 17 m: 89 s).
+GRAN_RISA_TURN_RADIUS_M = (18.0, 2.5, 13.0, 28.0)
+GRAN_RISA_MIN_RADIUS_3D_M = 14.5
+
+
+def build_gran_risa(seed: int = 0, smooth_m: float = 8.0, race: dict = RACE_2025_RUN1, fis: dict | None = None,
+                    max_attempts: int = 1000, min_radius_3d: float = GRAN_RISA_MIN_RADIUS_3D_M,
+                    turn_radius=GRAN_RISA_TURN_RADIUS_M) -> Course3DBuild:
+    import copy
+
+    fis = copy.deepcopy(fis or C.load_fis())
+    if turn_radius is not None:
+        fis["generator"]["turn_radius_m"] = list(turn_radius)
     rules, model, g = fis["rules"], fis["model"], fis["generator"]
     hf = T.HeightField.load(T.DATA / "gran_risa" / "terrain.npz")
     E, N = T.osm_centreline(T.DATA / "gran_risa" / "osm_pistes.json")
@@ -103,13 +115,28 @@ def build_gran_risa(seed: int = 0, smooth_m: float = 4.0, race: dict = RACE_2025
         if spacing[normal].min() < 15.0 or (n_delay and spacing[delay_after].min() < 32.0):
             continue
         turn_s = np.round(first + np.r_[0.0, np.cumsum(spacing)])
-        radius = np.clip(rng.normal(*g["turn_radius_m"][:2], size=n_turns - 1), *g["turn_radius_m"][2:])
+        # Turn targets at or above the 3D minimum, with room for the piste middle's drift.
+        r_lo = max(g["turn_radius_m"][2], min_radius_3d + 1.5)
+        radius = np.clip(rng.normal(*g["turn_radius_m"][:2], size=n_turns - 1), r_lo, g["turn_radius_m"][3])
         dx = C.offsets_for_radius(spacing, radius, margin, g["min_offset_m"])
+        dx_max = C.offsets_for_radius(spacing, np.full_like(spacing, r_lo), margin, g["min_offset_m"])
         sides = rng.choice([-1.0, 1.0]) * (-1.0) ** np.arange(n_turns)
-        # Each turning pole sits half its incoming offset from the piste's middle, on its side.
+        # Place turning poles one after another with exactly the designed offset, steering the pair's
+        # centre gently towards the piste's (smoothed) middle; the steering may only change an offset
+        # within [min_offset, the offset of an r_lo turn], so every turn keeps its radius rule.
         idx = turn_s.astype(int)
-        turn_x = mid[idx] + sides * 0.5 * np.r_[dx[0], dx]
-        width = rng.uniform(*g["gate_width_m"], size=n_turns).round(1)
+        turn_x = np.empty(n_turns)
+        turn_x[0] = mid[idx[0]] + sides[0] * 0.5 * dx[0]
+        for k in range(n_turns - 1):
+            centre = turn_x[k] + sides[k + 1] * 0.5 * dx[k]
+            err = mid[idx[k + 1]] - centre
+            step = np.clip(dx[k] + 2 * 0.5 * sides[k + 1] * err, g["min_offset_m"], dx_max[k])
+            turn_x[k + 1] = turn_x[k] + sides[k + 1] * step
+        # Gate width: the generator's draw, narrowed where the real piste is narrow (FIS minimum 4 m).
+        room = np.where(sides > 0, hi[idx] - edge_room - turn_x, turn_x - (lo[idx] + edge_room))
+        width = np.clip(np.minimum(rng.uniform(*g["gate_width_m"], size=n_turns), room), None, None).round(1)
+        if np.any(width < rules["gate_width_m"][0]):
+            continue
         gy, gx, gside, gw = [list(a) for a in (turn_s, turn_x, sides, width)]
         for j in sorted(delay_after, reverse=True):
             y_d = float(np.round(0.5 * (turn_s[j] + turn_s[j + 1])))
@@ -137,6 +164,13 @@ def build_gran_risa(seed: int = 0, smooth_m: float = 4.0, race: dict = RACE_2025
         # check above replaces it. Every other rule, including the turn-radius rule, applies as is.
         violations = [v for v in C.validate(val, fis) if v.rule != "piste"]
         if violations:
+            continue
+        # The validator measures turns along the slope, which flatters them: in horizontal course
+        # coordinates (what the skier's heading and the 12 m clip see), with the gates following the
+        # piste's swinging middle, every turn must still allow `min_radius_3d` m.
+        flat = C.CourseSpec(name="gr_flat", length=s_finish, y_knots=frame.s, theta_knots=np.zeros_like(frame.s),
+                            gate_y=gy, gate_x=gx, gate_side=gside, gate_width=gw, gate_colour=colours)
+        if C.implied_radius(flat, model["body_clearance_m"]).min() < min_radius_3d:
             continue
         spec = C.CourseSpec(name="gran_risa", length=s_finish, y_knots=frame.s, theta_knots=theta,
                             gate_y=gy, gate_x=gx, gate_side=gside, gate_width=gw, gate_colour=colours,

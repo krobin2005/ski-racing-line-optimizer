@@ -37,7 +37,10 @@ def build_course(cfg: dict):
 
         b = build_gran_risa(seed=int(spec_cfg.get("seed", 0)),
                             smooth_m=float(cfg.get("sim3d", {}).get("terrain_smooth_m", 8.0)))
-        return b.course, b.spec, sim3d.rollout3d, b.frame.kappa
+        p3 = sim3d.Params3D.from_config(cfg)
+        rollout_fn = lambda act, params, course, p, n: sim3d.rollout3d(act, params, course, p, n, p3)  # noqa: E731
+        rollout_fn.p3 = p3
+        return b.course, b.spec, rollout_fn, b.frame.kappa
     spec = course_lib.spec_from_config(spec_cfg)
     return course_lib.to_course(spec), spec, rollout, None
 
@@ -50,6 +53,9 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
     p = SimParams.from_config(cfg)
 
     course, spec, rollout_fn, kappa_c = build_course(cfg)
+    if hasattr(rollout_fn, "p3") and "k_turn" in cfg.get("sim3d", {}):
+        # 3D carving loss, calibrated on the real race separately from the 2D value (configs/base.yaml)
+        p = p._replace(k_turn=float(cfg["sim3d"]["k_turn"]))
     courses = stack_courses([course])
     n_steps = n_steps_for(float(course.length), p.dy)
     arc = cfg.get("arc", {})
@@ -61,7 +67,8 @@ def run_experiment(experiment_path: str, force: bool = False, results_dir: str |
     obj = ObjParams.from_config(cfg)
     prob = Problem(evaluate=make_evaluator(policy, p, n_steps, obj, rollout_fn),
                    value_and_grad=make_value_and_grad(policy, p, n_steps, obj, rollout_fn),
-                   courses=courses, policy=policy, obj=obj)
+                   courses=courses, policy=policy, obj=obj, sim_params=p, n_steps=n_steps,
+                   params3d=getattr(rollout_fn, "p3", None))
     trajectory = make_trajectory(policy, p, n_steps, rollout_fn)
 
     report = []
