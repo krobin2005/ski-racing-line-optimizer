@@ -4,7 +4,7 @@ Finding the fastest line down a Giant Slalom course without crashing, and compar
 
 Evolutionary Computing independent project, DCS 340, Bates College. Kyle and Liam.
 
-**The full implementation plan is in [docs/PLAN.md](docs/PLAN.md).** It is the official copy; change the plan there, in a commit.
+**The full implementation plan is in [docs/PLAN.md](docs/PLAN.md); the plan to reach 3D on the real Gran Risa by November 30 is in [docs/ROADMAP_3D.md](docs/ROADMAP_3D.md).** It is the official copy; change the plan there, in a commit.
 
 ## Setup (Mac)
 
