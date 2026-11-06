@@ -52,13 +52,14 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 
 ## Status
 
-| Step | Plan section | Status |
-| --- | --- | --- |
-| Setup: repo, environment, plan | — | Done |
-| Days 1–2: core simulator + physics tests, evaluator, runner, logger | §8 | Done: 24 tests pass; 1,000 candidates × 1,200 m in ~10 ms |
-| Days 3–4: FIS rules, course generator, course plot | §8 | Done: 1,000 generated courses validate; 43 tests pass |
-| Days 5–6: hazard model, spline optimizers | §8 | Done: switchable DNF model, risk map, Adam / CMA-ES (2 arms) / GA / hybrid, summary + figures |
-| Day 6 gate: baseline runs end to end | §8 | Passed with one open issue: 5 of 6 methods finish cleanly; 57–60 s, 57–59 km/h, ~7% DNF. Turn shape too peaky, see [docs/reports/day6_baseline](docs/reports/day6_baseline/SUMMARY.md) |
-| Days 7–8: coach line, deceptive course, hybrid | §8 | |
-| Days 9–11: neuroevolution | §8 | |
-| Days 12–14: 10-seed runs, figures, report | §8 | |
+| Step | Status |
+| --- | --- |
+| Setup, plan v2.1 | Done |
+| Days 1–8 (2D): simulator, FIS courses, DNF model, optimizers, trap course | Done |
+| 2D results, easy course, 3 seeds | Done: [arc line (main)](docs/reports/2d_easy_arc/SUMMARY.md), [spline (contrast)](docs/reports/2d_easy_spline/SUMMARY.md). All methods within 1% on the arc line; CMA-ES reaches it ~28x faster than Adam. The spline line costs every method 17-30 s. |
+| 3D (docs/ROADMAP_3D.md): Gran Risa terrain pipeline | Done: [terrain figures](docs/reports/gran_risa_terrain) |
+| 3D simulator (camber, fall-away, rolls, compressions, edge angle) | Done, tested against analytic cases |
+| Gran Risa course set (52 gates / 51 turning, as in the 21 Dec 2025 race, run 1) | Done; calibrated so the optimized line matches the real 76.00 s |
+| DP global baseline ("discretize and search") | Done |
+| Gran Risa method comparison (7 methods, 3 seeds) | Running |
+| Neural controller | Stretch (cut first, see the roadmap) |
