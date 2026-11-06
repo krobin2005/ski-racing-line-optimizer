@@ -8,6 +8,21 @@
 
 ---
 
+## Status (November 6)
+
+| Step | Status |
+| --- | --- |
+| Finish 2D | **Done.** Arc-line results in `docs/reports/2d_easy_arc`, spline contrast in `docs/reports/2d_easy_spline`. |
+| Terrain pipeline | **Done.** South Tyrol DTM 2.5 m (the 0.5 m LiDAR has no data on the slope) + OSM piste line and outline. Matches the published drop (450 vs 448 m), length (~1.25 km), mean and max gradient. |
+| 3D dynamics | **Done.** Point mass on the real surface: camber / fall-away, rolls / compressions, edge angle, airborne check. Exact against analytic cases; gradients verified. 165 ms per 1,000 candidates. |
+| Gran Risa course set | **Done.** 52 gates / 51 turning gates as in the 21 Dec 2025 race, run 1 (setter N. Bryant, fastest run 76.00 s by M. Schwarz). FIS-valid, inside the real piste edges. |
+| 3D DNF model + calibration | **Done.** Boot-out risk from 66°, boot-out ≈ 70° from the 49 mm stack, hard DNF at 78°. Calibrated two ways: (1) course turn targets (mean 18 m) so the coach line runs the real race's pace, 76.2 s at 58.5 km/h vs 76.00 s at 58.6 km/h, under the 2D carving loss; (2) the 3D carving loss (`sim3d.k_turn` = 0.18) so the **optimized** line lands near the real 76 s. |
+| DP global baseline | **Done** (`optim/dp.py`). |
+| Gran Risa method comparison | **Running.** |
+| Figures | `skiopt/analysis/gran_risa_figures.py`: line on the terrain map, along-course speed / G / edge / normal load. |
+
+**Open question:** with `k_turn` = 0.18 the unoptimized coach line slows to about 20 km/h in the flatter finish section. If the optimized lines do the same, the carving loss is too strong on flat ground and should be revisited.
+
 ## 1. What is (and isn't) available about the Gran Risa
 
 | Need | Availability | Plan |
