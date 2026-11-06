@@ -254,7 +254,7 @@ On the deceptive course, 8 independent Adam starts ended at 8 different optima, 
 | *Real fastest run 1 (Marco Schwarz)* | *76.00 s* | |
 
 - Optimized lines carve at peak edge angles of 68–70°, peak speeds of about 70 km/h on the steep sections and about 45 km/h in the flatter finish.
-- The finish speeds are probably lower than in the real race, which suggests the carving loss is somewhat strong on flat ground (§6).
+- The finish speeds look low at first sight. The official splits allow a cautious check: if the third timing point is where the DP line reaches Schwarz's third split (56.93 s), about 896 m down the course, then his last section of about 260 m took 19.07 s, about 49 km/h. Our optimized lines do about 45 km/h there. The timing points' positions are not published, so this is suggestive only (figure: `split_times.png`).
 
 ## 6. Discussion
 
@@ -270,8 +270,7 @@ On the deceptive course, 8 independent Adam starts ended at 8 different optima, 
 - generated gates, since real positions are unpublished;
 - a 2.5 m terrain model, smoothed at 8 m;
 - no snow-condition variation;
-- the official split times can't be compared section by section, because timing-point positions aren't published;
-- finish-flat speeds that are probably low.
+- the official split times can't be compared section by section, because timing-point positions aren't published.
 
 ## 7. Conclusion and outlook
 
