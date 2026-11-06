@@ -37,6 +37,7 @@ class ObjParams(NamedTuple):
     ref_speed: float = 60.0 / 3.6
     gate_miss_on: float = 1.0
     wall_weight: float = 100.0
+    miss_margin: float = 0.0
 
     @classmethod
     def from_config(cls, cfg: dict) -> "ObjParams":
@@ -47,7 +48,8 @@ class ObjParams(NamedTuple):
                    clearance=float(cfg["fis"]["model"]["body_clearance_m"]),
                    t_dnf_factor=float(o["t_dnf_factor"]), ref_speed=float(o["ref_speed_kmh"]) / 3.6,
                    gate_miss_on=gate_miss_on,
-                   wall_weight=float(cfg.get("risk", {}).get("wall", {}).get("weight", 100.0)))
+                   wall_weight=float(cfg.get("risk", {}).get("wall", {}).get("weight", 100.0)),
+                   miss_margin=float(o.get("miss_margin", 0.0)))
 
 
 def pass_window(course: Course, clearance):
@@ -60,12 +62,15 @@ def pass_window(course: Course, clearance):
 
 def gate_miss(summary: Summary, course: Course, obj: ObjParams):
     """Per-gate miss distance (m): 0 inside the pass window, distance to it outside.
-    Returns (hard, smooth); padding gates contribute 0."""
+    Returns (hard, smooth); padding gates contribute 0. The smooth miss is measured to a window
+    shrunk by miss_margin on each side, so a penalty method that settles slightly outside its
+    window (sharp beta_miss) still passes the real gate."""
     lo, hi = pass_window(course, obj.clearance)
     x = summary.x_gates
     on = course.gates.valid * obj.gate_miss_on
     hard = (jax.nn.relu(lo - x) + jax.nn.relu(x - hi)) * on
-    smooth = (softplus_b(lo - x, obj.beta_miss) + softplus_b(x - hi, obj.beta_miss)) * on
+    m = obj.miss_margin
+    smooth = (softplus_b(lo + m - x, obj.beta_miss) + softplus_b(x - hi + m, obj.beta_miss)) * on
     return hard, smooth
 
 

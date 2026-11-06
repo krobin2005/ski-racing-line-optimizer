@@ -1,0 +1,11 @@
+# Companion to gran_risa_margin.yaml: DP -> Adam with the sharp penalty and a 5 cm margin.
+experiment: gran_risa_margin
+
+course: {kind: gran_risa, seed: 0}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+
+methods:
+  - {name: dp, label: dp_adam, refine: adam, adam: {lr: 0.05, lr_final: 0.005, lam_gate_start: 100.0}}
+
+seeds: [0]

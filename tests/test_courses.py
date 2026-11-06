@@ -214,3 +214,18 @@ def test_deceptive_course_is_valid_and_has_a_rhythm_change():
     assert C.validate(spec, FIS) == []
     radii = C.implied_radius(spec, 0.4)
     assert radii.max() > 28 and radii.min() < 15  # a fast section, then a tight rhythm change
+
+
+def test_miss_margin_shifts_only_the_smooth_penalty():
+    spec = easy()
+    course = C.to_course(spec)
+    # Just inside the near edge of the pass window (pole + 0.4 m clearance), by 1 cm.
+    x = spec.gate_x + spec.gate_side * 0.41
+    sharp = ObjParams(clearance=0.4, beta_miss=200.0)
+    margin = sharp._replace(miss_margin=0.05)
+    hard0, smooth0 = gate_miss(_summary_at(x), course, sharp)
+    hard1, smooth1 = gate_miss(_summary_at(x), course, margin)
+    assert float(hard0.sum()) == float(hard1.sum()) == 0.0  # the real gate is still passed
+    # Without the margin the sharp penalty is ~0 here; with it, the line is 4 cm inside the shrunk window's edge.
+    assert float(smooth0.max()) < 0.01
+    np.testing.assert_allclose(np.asarray(smooth1), 0.04, atol=0.005)

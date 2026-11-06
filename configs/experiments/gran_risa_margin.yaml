@@ -1,0 +1,17 @@
+# Ablation, step 2 (REPORT.md §6). With the sharp penalty (gran_risa_sharp.yaml) Adam stops passing
+# gates wide, but settles a few mm to cm outside them: a quadratic penalty's optimum sits where the
+# time gained per metre equals 2 * lam * miss. Here the smooth miss is measured to a window shrunk by
+# 5 cm per side (objective.miss_margin), so that small overshoot lands inside the real gate. The hard
+# score (and so every reported result) still uses the real gate.
+#     python -m skiopt.batch configs/experiments/gran_risa_margin.yaml configs/experiments/gran_risa_margin_dp.yaml
+experiment: gran_risa_margin
+
+course: {kind: gran_risa, seed: 0}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+
+methods:
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: cmaes_smooth, population: 32, sigma: 0.5}
+
+seeds: [0, 1, 2]
