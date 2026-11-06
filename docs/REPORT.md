@@ -2,7 +2,7 @@
 
 *Kyle Robin and Liam Baron — DCS 340 Evolutionary Computing, Bates College — draft, November 2026*
 
-> **Draft status.** Sections 1–4 describe the model and methods as implemented. Results marked *(3 seeds, preliminary)* come from the day-6 runs and will be replaced by the 10-seed final runs (`configs/experiments/final_easy.yaml`, `final_trap.yaml`, `gran_risa.yaml`). Every number cites a saved result or configuration file, so nothing has to be re-run to check it.
+> **Draft status.** Results in §5 are the 10-seed final runs (`configs/experiments/final_easy.yaml`, `final_trap.yaml`, `gran_risa.yaml`; 220 runs, none failed). Full tables, significance tests and figures: `docs/reports/final_easy/`, `final_trap/`, `final_gran_risa/`, `sensitivity_mu/`, `sensitivity_k_turn/`. Every number cites a saved result or configuration file, so nothing has to be re-run to check it.
 
 ## Abstract
 
@@ -10,10 +10,11 @@ A Giant Slalom (GS) racer wants the line with the highest average speed over the
 
 We build a differentiable point-mass GS simulator, first on a tilted plane (2D), then on the real terrain of the Gran Risa in Alta Badia (3D), with FIS-valid course sets and an explicit, switchable model of DNF risk. We then compare Adam, CMA-ES, a genetic algorithm, a CMA-ES → Adam hybrid and a dynamic-programming lattice search, all at equal evaluation budgets.
 
-Three findings stand out:
+Four findings stand out (10 seeds per method, Mann–Whitney tests with Holm correction):
 1. **Representation matters more than the optimizer.** Describing the line as circular arcs between gate apexes instead of a cubic spline makes every method 17–30 s faster and turns realistic.
-2. **Evolution is far more sample-efficient** on this problem. CMA-ES reaches within 1% of the best line about 28× sooner than Adam.
-3. **The 3D model, calibrated against the real race, reproduces the actual winning time.** The optimized line runs 75.9 s on the Gran Risa; Marco Schwarz's fastest run 1 on 21 December 2025 was 76.00 s.
+2. **Evolution wins, on every course.** CMA-ES on the true score is best or tied-best on all three courses, and reaches within 1% of the best line about 20× sooner than Adam on the easy course. On the trap course and the Gran Risa, Adam never gets within 1%.
+3. **Evolution beats the grid.** On the Gran Risa, CMA-ES (74.51 s), the CMA-ES → Adam hybrid (74.59 s) and the GA (74.82 s) all beat the dynamic-programming lattice optimum (75.94 s), because they can place apexes between the lattice points.
+4. **The calibrated 3D model lands close to the real race.** The best line runs 74.4–74.6 s on the Gran Risa; Marco Schwarz's fastest run 1 on 21 December 2025 was 76.00 s, 2% slower, a plausible gap between an optimal line and a real racer.
 
 ## 1. Introduction
 
@@ -193,9 +194,9 @@ Gate coordinates are not published, so the set is **generated**:
 
 **Two calibrations, each against a real target:**
 1. **Course turn targets** (mean 18 m): the unoptimized coach line then runs the real race pace under the 2D carving loss, 76.2 s at 58.5 km/h against 76.00 s at 58.6 km/h.
-2. **3D carving loss** (k_turn = 0.18): the optimized line lands at the real winning time. The DP-optimal line runs 72.9 / 75.9 / 79.0 / 81.9 s at k_turn = 0.16 / 0.18 / 0.20 / 0.22.
+2. **3D carving loss** (k_turn = 0.18): chosen so the DP-optimal line lands at the real winning time. The DP line runs 69.5 / 72.9 / 75.9 / 79.0 / 81.9 s at k_turn = 0.14 / 0.16 / 0.18 / 0.20 / 0.22 (`docs/reports/sensitivity_k_turn/`), about 1.5 s per 0.01.
 
-Calibrating on the *optimized* line rests on the assumption that the winner skis close to the optimal line.
+Calibrating on an *optimized* line rests on the assumption that the winner skis close to the optimal line. The final runs then found lines 1.4 s faster than the DP's (§5.5), so the best line now sits 2% under the real time. We kept k_turn = 0.18 rather than re-tune it after seeing the results. k_turn ≈ 0.19 would put the best line at 76.0 s, We expect the ranking of methods to hold there, since k_turn slows every line through the same term, but we have not re-run the comparison at 0.19.
 
 ## 5. Methods and experiments
 
@@ -225,61 +226,105 @@ All at an equal budget of 2×10⁵ rollout-equivalents (one gradient step counts
 | **DP lattice search** (3D) | each apex chooses from 6 margins × 6 positions; segments are simulated with the full 3D physics from the actual entry speed. It keeps the cheapest label per exit-speed band rather than a cost/speed Pareto front, because on steep terrain a *slower* entry is what keeps the next turns feasible. Segments that drift off their end apex are rejected. |
 | **DP → Adam** (3D) | the lattice result refined by Adam |
 
-### 5.3 Representation beats optimizer *(easy course, 3 seeds, preliminary)*
+### 5.3 The easy course *(10 seeds)*
 
-| Method | Spline time (s) | Arc time (s) | Arc E[score] (s) | Arc DNF risk |
-| --- | --- | --- | --- | --- |
-| Adam | 63.4 | 45.1 | 45.68 | 1.7% |
-| CMA-ES (hard) | 65.4 (2/3 clean) | 44.8 | 45.34 | 1.6% |
-| CMA-ES (smooth) | 61.9 | 45.3 | 45.99 | 2.0% |
-| GA | 75.3 (2/3 clean) | 44.9 | 45.38 | 1.5% |
-| Hybrid | — | 44.8 | 45.34 | 1.5% |
-| Coach line | — | 47.6 | 48.50 | 2.9% |
+| Method | E[score] (s) | T (s) | D (m) | v̄ (km/h) | DNF risk | Rollouts to within 1% of best |
+| --- | --- | --- | --- | --- | --- | --- |
+| **CMA-ES (hard)** | **45.29 ± 0.01** | 44.76 | 935.4 | 75.2 | 1.5% | 4,240 |
+| **Hybrid** | **45.29 ± 0.01** | 44.77 | 935.4 | 75.2 | 1.5% | 4,272 |
+| GA | 45.35 ± 0.01 | 44.83 | 935.7 | 75.1 | 1.5% | 65,408 |
+| Adam | 45.67 ± 0.01 | 45.10 | 937.7 | 74.8 | 1.7% | 84,272 |
+| Adam, 4 restarts | 45.84 ± 0.06 | 45.26 | 938.2 | 74.6 | 1.7% | never |
+| CMA-ES (smooth) | 45.91 ± 0.57 | 45.25 | 938.2 | 74.6 | 2.0% | 87,200 (6 of 10 seeds) |
+| Coach line | 48.50 | 47.61 | 952.5 | 72.0 | 2.9% | — |
 
-**Turn shape:** with the spline, every method produced "straighten, then hook" lines, averaging about 28 m per turn with peaks at the 12 m clip. The arc line produces turns averaging 21–22 m with tightest points of about 20 m. That is inside the 18–22 m band that men's Continental Cup racers report.
+Every method finishes clean on all 10 seeds. CMA-ES and the hybrid are tied (p = 0.23) and beat every other method (Holm-corrected p = 0.003, A12 = 1.0); the GA beats both Adam variants. CMA-ES gets within 1% of the best line about **20× sooner than Adam**.
 
-**Sample efficiency** (arc line): to come within 1% of the best known score, CMA-ES needed about 3,000 rollouts, the hybrid about 3,300 and Adam about 85,000.
+**Representation beats optimizer** *(3 seeds, `docs/reports/2d_easy_spline/`)*: with the same budget and the spline line, every method was 17–30 s slower (Adam 63.4 s, CMA-ES on the smooth loss 61.9 s, GA 75.3 s with 2 of 3 seeds clean). Spline lines "straighten, then hook", averaging about 28 m per turn with peaks at the 12 m clip. Arc lines turn at 21–22 m on average, with tightest points of about 20 m, inside the 18–22 m band men's Continental Cup racers report.
 
-### 5.4 The trap course
+### 5.4 The trap course *(10 seeds)*
 
-On the deceptive course, 8 independent Adam starts ended at 8 different optima, from 53.7 s down to lines that miss gates. Gradient descent's answer depends on where it starts. The final 10-seed runs compare all methods there.
+| Method | E[score] (s) | T (s) | Rollouts to within 1% of best |
+| --- | --- | --- | --- |
+| **CMA-ES (hard)** | **52.05 ± 0.06** | 51.23 | 17,280 |
+| Hybrid | 52.12 ± 0.11 | 51.26 | 16,160 |
+| GA | 52.28 ± 0.07 | 51.41 | 120,704 |
+| Adam, 4 restarts | 52.56 ± 0.06 | 51.80 | 1 of 10 seeds |
+| CMA-ES (smooth) | 52.57 ± 0.03 | 51.82 | never |
+| Adam | 52.83 ± **0.73** | 51.94 | never |
+| Coach line | DQ (misses gates) | — | — |
 
-### 5.5 The Gran Risa *(preliminary)*
+The deceptive course is built so that the obvious line is wrong: the coach line misses gates on it. Adam's spread across seeds is 12× CMA-ES's, because each start lands in a different local optimum (in an earlier test, 8 Adam starts gave 8 different answers). Restarts make Adam consistent but not better. CMA-ES and the hybrid again tie (p = 0.18) and beat everything else (p ≤ 0.011).
 
-| Line | Time | DNF risk |
-| --- | --- | --- |
-| DP-optimal, k_turn 0.18 | 75.9 s | 1.0% |
-| GA, one seed (before the boot-out update) | 74.8 s | 4.4% |
-| Coach line | 94.9 s | ~12–14% |
-| *Real fastest run 1 (Marco Schwarz)* | *76.00 s* | |
+### 5.5 The Gran Risa *(10 seeds)*
 
-- Optimized lines carve at peak edge angles of 68–70°, peak speeds of about 70 km/h on the steep sections and about 45 km/h in the flatter finish.
-- The finish speeds look low at first sight. The official splits allow a cautious check: if the third timing point is where the DP line reaches Schwarz's third split (56.93 s), about 896 m down the course, then his last section of about 260 m took 19.07 s, about 49 km/h. Our optimized lines do about 45 km/h there. The timing points' positions are not published, so this is suggestive only (figure: `split_times.png`).
+| Line | E[score] (s) | T (s) | D (m) | v̄ (km/h) | DNF risk | Rollouts to within 1% |
+| --- | --- | --- | --- | --- | --- | --- |
+| **CMA-ES (hard)** | **74.80 ± 0.06** | 74.51 | 1311.3 | 63.4 | 1.0% | 9,040 |
+| Hybrid | 74.88 ± 0.10 | 74.59 | 1311.5 | 63.3 | 1.0% | 8,896 |
+| GA | 75.12 ± 0.07 | 74.82 | 1312.2 | 63.1 | 1.0% | 101,120 |
+| DP lattice | 76.21 | 75.94 | 1314.3 | 62.3 | 1.0% | — (≈ 4,800 rollouts) |
+| DP → Adam | 76.21 | 75.94 | 1314.3 | 62.3 | 1.0% | — |
+| CMA-ES (smooth) | 77.25 ± 0.47 | 77.06 | 1316.5 | 61.5 | 0.7% | never |
+| Adam | 77.53 ± 0.24 | 77.35 | 1317.3 | 61.3 | 0.7% | never |
+| Coach line | 95.88 | 94.89 | 1333.8 | 50.6 | 12.0% | — |
+| *Real fastest run 1 (Marco Schwarz)* | | *76.00* | | | | |
+
+All 80 optimizer runs finish clean. The ranking is the same as in 2D: CMA-ES ≈ hybrid (p = 0.23) > GA > DP > the two smooth-loss methods, which tie with each other (p = 0.28). Every other pair differs at p ≤ 0.002.
+
+- **The continuous searches beat the lattice** by 1.1–1.4 s. The DP is optimal only on its grid of 6 margins × 6 apex positions per gate; CMA-ES places apexes between those points.
+- **DP → Adam did not improve the DP line at all** (identical in every seed). §6 explains why.
+- **The best lines are physically plausible:** peak speed about 80 km/h on the steep upper section, peak load 2.5–2.6 g (the hard limit is 4 g), peak edge angle 67–70° (boot-out risk starts at 71.7°), and the normal load never approaches zero, so no line goes airborne (`run_trace.png`). Their turns average 20–28 m, mostly a little rounder than the 18–22 m band: on this steep, fast course the optimum gives up some distance to keep speed.
+- **Risk** on the optimized lines comes almost entirely from load (92–96%). On the coach line it comes from being slow (93%): it scrubs speed in the flatter sections, down to about 20 km/h in the finish.
+- **The finish section:** optimized lines carry about 45 km/h through the flatter finish. A cautious check against the official splits (the timing points' positions are not published): if the third timing point is where the DP line reaches Schwarz's third split (56.93 s), about 896 m down the course, his last section of about 260 m took 19.07 s, about 49 km/h. The model may be slightly too slow on flat ground (`split_times.png`).
+
+### 5.6 Snow conditions *(DP line, `docs/reports/sensitivity_mu/`)*
+
+The race was run on hard snow at −3 °C; our default ski–snow friction is μ = 0.04. Re-optimizing the DP line at other values:
+
+| μ | 0.02 | 0.03 | **0.04** | 0.05 | 0.06 | 0.08 |
+| --- | --- | --- | --- | --- | --- | --- |
+| DP line T (s) | 73.59 | 74.78 | **75.94** | 77.27 | 78.55 | 81.75 |
+| v̄ (km/h) | 64.3 | 63.3 | 62.3 | 61.2 | 60.2 | 57.9 |
+| DNF risk | 1.3% | 1.1% | 1.0% | 1.0% | 1.1% | 2.1% |
+| Coach line T (s) | 91.42 | 93.09 | 94.89 | 96.85 | 99.00 | 104.16 |
+
+Each 0.01 of friction costs the optimized line about 1.2–1.6 s, so snow conditions matter as much as most of the differences between methods. The unoptimized coach line loses about 1.5× as much, because it already runs slowly in the flat sections, where friction dominates gravity. Slow snow also raises the coach line's risk of a too-slow DNF (9.6% → 19.2%).
 
 ## 6. Discussion
 
-**When does evolution win?** On every course so far, CMA-ES reaches near-optimal lines with far fewer evaluations than Adam. It handles hard constraints directly, without a schedule of penalty weights, and it isn't tied to its starting point. On the spline it struggled while CMA-ES on the smooth loss did not, which shows the **objective** matters as much as the optimizer.
+**Evolution wins, and the objective is why.** CMA-ES on the true (hard) score is best or tied-best on every course, and Adam is never better than fourth. The cleanest evidence that the *objective* matters as much as the optimizer is CMA-ES itself: run on the smooth loss Adam uses, it falls to Adam's level on all three courses (Gran Risa 77.25 s vs. 74.80 s on the hard score).
 
-**When does gradient descent win?** Polishing once inside the right basin. That is the role of the hybrid and of DP → Adam.
+**The smooth gate penalty is biased.** To make gate misses differentiable, the smooth loss adds λ · softplus(β·miss)² / β² per gate, with β = 5 /m and λ annealed from 0.1 to 100. Softplus is never exactly zero: a line passing *exactly* at the pass limit still pays (ln 2 / 5)² × 100 ≈ 1.9 s per gate at the final λ. So the methods that descend the smooth loss pass every gate wider than they need to. Their Gran Risa lines are 5–6 m longer than CMA-ES's (1317 m vs. 1311 m), and the logged runs show it directly: once every gate is passed, Adam's line gets *slower* as λ rises (DP → Adam: 77.7 s at λ ≈ 7.5, 82.2 s at λ = 100, with no gate missed). The hard score has no such bias, which is why CMA-ES, GA and the CMA-ES phase of the hybrid do not suffer from it.
 
-**Why the DP matters.** It gives a global reference on a grid, about 5,000 evaluations in about 100 s, against which the continuous methods can be judged. It is also the "discretize and search" approach classically used for racing lines.
+**Why DP → Adam did nothing.** The refinement starts from the DP line, which passes every gate, but its λ schedule starts at 0.1. At that weight dropping gates is cheap: Adam immediately gave up 47 of them for speed, then had to win them back as λ grew, and by then the bias above made its clean lines slower than the DP line it started from. The run keeps the best clean line seen, so it returned the DP line unchanged. The same happens in the hybrid's Adam phase: in all 30 hybrid runs (3 courses × 10 seeds) its best clean line was 0.3–2 s *worse* than the CMA-ES phase it started from, so the hybrid's result is its CMA-ES result. The ablation below tests the fix: a sharper penalty (β = 200, bias ≈ 0.001 s per gate), and for DP → Adam a penalty that starts at full weight.
+
+*Ablation results (`configs/experiments/gran_risa_sharp*.yaml`, `final_easy_sharp.yaml`): pending.*
+
+**When does gradient descent help?** Only for polishing inside the right basin, and only with an unbiased objective. Its gradients are cheap and exact (one step costs about 3 rollouts), but on the trap course and the Gran Risa it never got within 1% of the best line, and its answer depends on the start (the trap course's 12× larger spread across seeds).
+
+**Why the DP matters.** It gives a global reference on a grid in about 4,800 rollouts and about 50 s, and it is the "discretize and search" approach classically used for racing lines. The continuous methods beating it by 1.1–1.4 s shows how much a 6 × 6 grid per gate leaves on the table.
+
+**Snow matters as much as the method.** Moving μ by ±0.01 changes the optimized time by about ±1.3 s, the same size as the gap between the GA and the DP. A real comparison between two racers' lines would need the snow held fixed, as it is in this model.
 
 **Limitations:**
 - a point mass, not an articulated skier (no angulation; boot-out from geometry alone);
 - stylized risk constants (tuned with the risk map, not fitted to crash data);
+- the DNF time penalty is fixed (1.5 × the course length at 60 km/h, ≈ 103 s on the Gran Risa); a line slower than that, like the coach line on slow snow (104 s at μ = 0.08), scores *better* with more risk;
 - generated gates, since real positions are unpublished;
 - a 2.5 m terrain model, smoothed at 8 m;
-- no snow-condition variation;
+- snow conditions as one friction coefficient, with no change in carving grip;
 - the official split times can't be compared section by section, because timing-point positions aren't published.
 
 ## 7. Conclusion and outlook
 
-A differentiable, calibrated simulator turns a GS racing line into a well-posed optimization problem. With a good line representation, the optimizers agree on the answer and evolution gets there much faster. On real terrain, the calibrated 3D model reproduces the real winning time.
+A differentiable, calibrated simulator turns a GS racing line into a well-posed optimization problem. With a good line representation, evolution finds better lines than gradient descent, far sooner, on a plane, on a deceptive course and on the real Gran Risa, where the best line runs 74.5 s against the real winner's 76.00 s. Much of gradient descent's handicap comes from the smooth surrogate it needs, not from the gradient itself.
 
 Next steps:
+- an unbiased differentiable gate constraint (augmented Lagrangian or a hinge penalty), so the hybrid's gradient phase can actually polish;
 - two controls (edge and lean) instead of curvature alone;
 - digitized real gate positions;
-- snow-condition presets;
+- snow presets that change carving grip as well as glide;
 - a neural controller that generalizes across courses (the stretch goal).
 
 ## References

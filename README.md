@@ -1,6 +1,6 @@
 # Ski Racing-Line Optimizer
 
-Finding the fastest line down a Giant Slalom course without crashing, and comparing how different optimizers get there. A 2D point-mass skier runs through FIS-legal GS gates; gradient descent through a differentiable JAX simulator, evolutionary methods (GA, CMA-ES) and neuroevolution of a neural-network controller compete on equal budgets. The objective is expected race time: course time weighted by the probability of finishing.
+Finding the fastest line down a Giant Slalom course without crashing, and comparing how different optimizers get there. A 2D point-mass skier runs through FIS-legal GS gates; gradient descent through a differentiable JAX simulator, evolutionary methods (GA, CMA-ES), a CMA-ES → Adam hybrid and a dynamic-programming lattice search compete on equal budgets, in 2D and in 3D on the real Gran Risa (Alta Badia) terrain. The objective is expected race time: course time weighted by the probability of finishing.
 
 Evolutionary Computing independent project, DCS 340, Bates College. Kyle and Liam.
 
@@ -60,10 +60,12 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | --- | --- |
 | Setup, plan v2.1 | Done |
 | Days 1–8 (2D): simulator, FIS courses, DNF model, optimizers, trap course | Done |
-| 2D results, easy course, 3 seeds | Done: [arc line (main)](docs/reports/2d_easy_arc/SUMMARY.md), [spline (contrast)](docs/reports/2d_easy_spline/SUMMARY.md). All methods within 1% on the arc line; CMA-ES reaches it ~28x faster than Adam. The spline line costs every method 17-30 s. |
+| 2D results, easy course, 3 seeds | Done: [arc line (main)](docs/reports/2d_easy_arc/SUMMARY.md), [spline (contrast)](docs/reports/2d_easy_spline/SUMMARY.md). All methods within 1% on the arc line; CMA-ES reaches it ~28x faster than Adam (10-seed final: ~20x). The spline line costs every method 17-30 s. |
 | 3D (docs/ROADMAP_3D.md): Gran Risa terrain pipeline | Done: [terrain figures](docs/reports/gran_risa_terrain) |
 | 3D simulator (camber, fall-away, rolls, compressions, edge angle) | Done, tested against analytic cases |
-| Gran Risa course set (52 gates / 51 turning, as in the 21 Dec 2025 race, run 1) | Done; calibrated so the optimized line matches the real 76.00 s |
+| Gran Risa course set (52 gates / 51 turning, as in the 21 Dec 2025 race, run 1) | Done; 3D carving loss calibrated so the DP-optimal line matches the real 76.00 s |
 | DP global baseline ("discretize and search") | Done |
-| Final runs: 10 seeds, every method, on the easy course, the trap course and the Gran Risa (220 jobs via `python -m skiopt.batch`) | Running overnight, started Nov 5 ~21:00, about 8 h |
+| Final runs: 10 seeds, every method, on the easy course, the trap course and the Gran Risa (220 jobs via `python -m skiopt.batch`) | **Done** (Nov 6, 220/220 clean): [easy](docs/reports/final_easy/SUMMARY.md), [trap](docs/reports/final_trap/SUMMARY.md), [Gran Risa](docs/reports/final_gran_risa/SUMMARY.md). CMA-ES on the hard score is best or tied-best everywhere; on the Gran Risa it runs 74.5 s (real winner 76.00 s) and beats the DP lattice (75.9 s). Write-up: [docs/REPORT.md](docs/REPORT.md) §5–6. |
+| Sensitivity: snow friction, 3D carving loss | Done: [μ](docs/reports/sensitivity_mu/SENSITIVITY.md), [k_turn](docs/reports/sensitivity_k_turn/SENSITIVITY.md). About 1.3 s per 0.01 of friction. |
+| Ablation: sharp (unbiased) gate penalty for the gradient methods | Running (`configs/experiments/*_sharp*.yaml`) |
 | Neural controller | Stretch (cut first, see the roadmap) |

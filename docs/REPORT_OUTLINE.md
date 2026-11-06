@@ -2,7 +2,7 @@
 
 **Working title:** *Racing-line optimization for Giant Slalom: evolutionary vs. gradient methods, from a 2D model to the real Gran Risa.*
 
-This is a living outline. Numbers marked "(3 seeds)" are preliminary; the final tables use 10 seeds (PLAN.md §9). Every number links to a saved result, so nothing has to be re-run to write the report.
+This is a living outline. Numbers marked "(3 seeds)" are from the day-6 runs; the final tables (Nov 6) use 10 seeds (PLAN.md §9). Every number links to a saved result, so nothing has to be re-run to write the report.
 
 ## 1. Introduction
 - The problem: fastest line through a GS course, **without going down**.
@@ -51,21 +51,13 @@ This is a living outline. Numbers marked "(3 seeds)" are preliminary; the final 
    - Spline line: 61.9–75.3 s, up to 17% DNF; GA and hard-score CMA-ES finished 2 of 3 seeds. Turns averaged 28 m with peaks at the 12 m clip ("straighten, then hook").
    - Arc line: every method 44.8–45.1 s at about 1.5% DNF, with turns averaging 21–22 m.
    - Tables: `docs/reports/2d_easy_spline`, `docs/reports/2d_easy_arc`.
-2. **Sample efficiency** (2D arc): CMA-ES reaches 1% of the best in about 3,000 evaluations; Adam needs about 85,000; the hybrid about 3,300.
-3. **Objective vs. optimizer** (2D spline): CMA-ES on the smooth loss finished every seed while CMA-ES on the hard score did not.
-4. **Trap course**: 8 Adam starts ended at 8 different optima (53.7 s to DQ). Gradient descent's result depends on where it starts.
-5. **Gran Risa (3D), preliminary, seed 0**:
-
-   | Line | Time | DNF risk |
-   | --- | --- | --- |
-   | DP | 76.13 s | 4.2% |
-   | GA | 74.76 s | 4.4% |
-   | Coach line | 94.9 s | 14.4% |
-   | *Real fastest run 1 (Marco Schwarz)* | *76.00 s* | |
-
-   Peak edge angles of 67–70° sit below where boot-out risk starts (71.7°; boot-out ≈ 75.7° from the 49 mm stack and 90 mm sole).
-   - Remaining methods and seeds: pending.
-   - Figures: `line_on_map_*.png`, `run_trace.png`.
+2. **Final 10-seed results** (full write-up: REPORT.md §5; tables: `docs/reports/final_*`):
+   - Easy: CMA-ES 45.29 ≈ hybrid 45.29 > GA 45.35 > Adam 45.67 s (E[score]). CMA-ES reaches 1% of the best ~20× sooner than Adam (4,240 vs. 84,272 rollouts).
+   - Trap: CMA-ES 52.05 ≈ hybrid 52.12 > GA 52.28 > Adam 52.83 ± 0.73 s; Adam's seed spread is 12× CMA-ES's, and it never gets within 1%. The coach line misses gates.
+   - Gran Risa: CMA-ES 74.51 ≈ hybrid 74.59 > GA 74.82 > DP 75.94 > CMA-ES (smooth) 77.06 ≈ Adam 77.35 s; real 76.00 s. All 80 optimizer runs clean, peak edge 67–70° (boot-out risk from 71.7°), peak load ≈ 2.6 g.
+3. **Objective vs. optimizer**: CMA-ES on the smooth loss falls to Adam's level on every course. The smooth gate penalty is biased (≈ 1.9 s per gate at the pass limit at λ = 100), pushing lines wide; it also explains why DP → Adam and the hybrid's Adam phase never improved on their starts. Ablation with a sharp penalty: `configs/experiments/*_sharp*.yaml`.
+4. **Snow sensitivity**: about 1.3 s per 0.01 of ski–snow friction for the optimized line (`docs/reports/sensitivity_mu`).
+5. **Figures**: `line_on_map_*.png`, `run_trace.png`, `split_times.png`, `convergence.png`, `turn_radii.png`, `sensitivity.png`.
 6. **Calibration story** (worth its own subsection): every constant tuned against a real target and documented.
    - Turn-radius bands: Continental Cup racers average 18–22 m.
    - Carving loss: the realism ranges in 2D, the real 76 s in 3D.
