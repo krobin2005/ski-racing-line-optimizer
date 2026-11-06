@@ -96,6 +96,10 @@ class Params3D(NamedTuple):
     beta_air: float = 10.0
     airborne_dnf: float = 1.0            # 1.0: a negative normal load (airborne) is a hard DNF
     edge_dnf: float = 1.0                # 1.0: edge angle above edge_max is a hard DNF
+    # Sharpness (1/rad) of the smooth-objective wall at edge_max; 0 = the shared risk.wall.beta. The
+    # shared 20 /m-or-g is soft for an excess in radians: a line 11 deg below edge_max still pays
+    # ~0.1 s per metre of high edge in the smooth loss (REPORT.md §6, ablation 3).
+    wall_beta_edge: float = 0.0
 
     @classmethod
     def from_config(cls, cfg: dict, equipment: dict | None = None) -> "Params3D":
@@ -112,7 +116,8 @@ class Params3D(NamedTuple):
             edge_safe, edge_max = np.radians(r["edge_safe_deg"]), np.radians(r["edge_max_deg"])
         return cls(edge_safe=float(edge_safe), c_edge=float(r["c_edge"]), beta_edge=float(r["beta_edge"]),
                    edge_max=float(edge_max), c_air=float(r["c_air"]), n_min=float(r["n_min_g"]),
-                   beta_air=float(r["beta_air"]), airborne_dnf=float(r["airborne_dnf"]), edge_dnf=float(r["edge_dnf"]))
+                   beta_air=float(r["beta_air"]), airborne_dnf=float(r["airborne_dnf"]), edge_dnf=float(r["edge_dnf"]),
+                   wall_beta_edge=float(r.get("wall_beta_edge", 0.0)))
 
 
 def boot_out_angle(equipment: dict) -> float:
@@ -298,11 +303,12 @@ def advance(state: State3D, kappa_cmd, k, course: Course3D, p: SimParams, p3: Pa
                              state.n - jnp.interp(s, s_rows, course.piste_hi))
     broken = jnp.maximum(broken, (r.piste_on * (out_by > 0)).astype(dtype))
     wall = wall + r.wall_weight * r.piste_on * softplus_b(out_by, r.wall_beta)
+    beta_edge_wall = jnp.where(p3.wall_beta_edge > 0, p3.wall_beta_edge, r.wall_beta)
     air = p3.airborne_dnf * (o["N"] < 0)
     boot = p3.edge_dnf * (o["edge"] > p3.edge_max)
     broken = jnp.maximum(broken, jnp.maximum(air, boot).astype(dtype))
     wall = wall + r.wall_weight * (p3.airborne_dnf * softplus_b(-o["N"] / p.g, r.wall_beta)
-                                   + p3.edge_dnf * softplus_b(o["edge"] - p3.edge_max, r.wall_beta))
+                                   + p3.edge_dnf * softplus_b(o["edge"] - p3.edge_max, beta_edge_wall))
     d_ell = o["d_ell"] * active
     tel = Telemetry(x=state.n, y=s, psi=state.psi, v=state.v, kappa=o["kappa_g"], a_net=o["F_lat"],
                     G=o["G"], theta=o["pitch"], z=o["z"], N_load=o["N"], edge=o["edge"])

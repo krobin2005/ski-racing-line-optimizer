@@ -1,0 +1,19 @@
+# Ablation, step 3 (REPORT.md §6). gran_risa_margin.yaml fixed the gate penalty, but the 3D smooth loss
+# has a second bias: the wall at the hard edge-angle limit uses the shared wall beta (20), which for an
+# excess in radians is soft. A line 11 deg below edge_max pays ~7.6 s of edge wall on the Gran Risa
+# (CMA-ES's best line) against ~4.8 s on Adam's, so the smooth loss prefers Adam's slower line.
+# Here the edge wall is sharp (1146 /rad = 20 /deg). Everything else as gran_risa_margin.yaml.
+#     python -m skiopt.batch configs/experiments/gran_risa_edgewall.yaml configs/experiments/gran_risa_edgewall_dp.yaml
+experiment: gran_risa_edgewall
+
+course: {kind: gran_risa, seed: 0}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+sim3d: {risk: {wall_beta_edge: 1146.0}}
+
+methods:
+  - {name: adam, lr: 0.1, lr_final: 0.01}
+  - {name: cmaes_smooth, population: 32, sigma: 0.5}
+  - {name: hybrid, cma_fraction: 0.3, cmaes: {population: 32, sigma: 0.5}, adam: {lr: 0.05, lr_final: 0.005, lam_gate_start: 100.0}}
+
+seeds: [0, 1, 2]

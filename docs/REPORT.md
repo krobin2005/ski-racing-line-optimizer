@@ -325,7 +325,20 @@ Every run is now clean, and the gradient methods' Gran Risa lines are 1312.6 m l
 
 So the gradient methods' handicap is mostly the constraint handling. What remains (Adam 1.2 s behind CMA-ES on the Gran Risa, at about 25× the wall-clock time) is the start-dependence of local search: Adam starts from a random perturbation of the default line (σ = 0.5), and the DP start ends 0.3 s better than those starts.
 
-*Ablation 3 (`configs/experiments/*_margin_hybrid.yaml`, `final_trap_margin.yaml`): the hybrid, with its Adam phase on the margin penalty at full weight from the start, on all three courses; and Adam on the trap course. Running.*
+**Ablation 3: the margin penalty on the trap course and in the hybrid** (`final_trap_margin.yaml`, `*_margin_hybrid.yaml`; 3 seeds). The hybrid's Adam phase now starts at full weight from CMA-ES's clean line.
+
+| run (β = 200, 5 cm margin) | E[score] (s) | T (s) | β = 5 (10 seeds) | CMA-ES, hard score |
+|---|---|---|---|---|
+| Adam, trap | 52.07 ± 0.01 | 51.23 ± 0.02 | 52.83 ± 0.73 | 52.05 ± 0.06 |
+| hybrid, trap: Adam phase vs. its CMA-ES phase | +0.03 to +0.10 | | +0.3 to +2 (all 30 runs, 3 courses) | |
+| hybrid, easy: Adam phase vs. its CMA-ES phase | +0.14 to +0.16 | | | |
+| hybrid, Gran Risa: Adam phase vs. its CMA-ES phase | +0.85 to +0.99 | | | |
+
+On the trap course, the deceptive one, Adam with the margin penalty is now level with CMA-ES (52.07 vs. 52.05 s) and its spread over seeds drops from 0.73 to 0.01 s. In 2D, then, the whole gap between gradient descent and evolution came from the penalty. The hybrid's Adam phase still never improves on its CMA-ES phase, but in 2D it now ends within 0.03–0.16 s of it, close to the 5 cm margin's own cost.
+
+On the Gran Risa it still ends almost 1 s worse, and the logs show why: its *first* logged line is already 1 s slower than the CMA-ES line it started from, so the smooth loss itself prefers a slower line there. The culprit is a second biased term that only exists in 3D: the smooth wall at the hard edge-angle limit (`edge_max`, 80.7°). It uses the shared wall sharpness (β = 20), which suits an excess in metres or g but is soft for one in radians, so a line 11° below the limit still pays for it. Evaluated on the saved champions with λ = 100, the smooth loss exceeds the hard score by 5.3 s on the DP → Adam line, and the edge wall alone charges CMA-ES's best line about 2.8 s more than Adam's, more than the 1.3 s CMA-ES's line actually saves. With a sharp edge wall (`sim3d.risk.wall_beta_edge` = 1146 /rad, i.e. 20 /deg) the smooth loss of the DP → Adam line is within 0.04 s of its hard score. (CMA-ES's line still costs more in the smooth loss, but only because it passes the gates closer than the 5 cm margin: about 0.25 s per gate, as intended.)
+
+*Ablation 4 (`configs/experiments/gran_risa_edgewall*.yaml`): margin penalty plus a sharp edge wall for Adam, CMA-ES on the smooth loss, the hybrid and DP → Adam on the Gran Risa. Running.*
 
 **When does gradient descent help?** Only for polishing inside the right basin, and only with an unbiased objective. Its gradients are cheap and exact (one step costs about 3 rollouts), but on the trap course and the Gran Risa it never got within 1% of the best line, and its answer depends on the start (the trap course's 12× larger spread across seeds).
 

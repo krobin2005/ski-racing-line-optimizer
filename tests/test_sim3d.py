@@ -108,6 +108,27 @@ def test_rollout_gradient_matches_finite_differences():
         assert analytic == pytest.approx(numeric, rel=1e-4)
 
 
+def test_sharp_edge_wall_vanishes_below_the_limit():
+    """The smooth edge wall should cost nothing 10 deg below edge_max once it is sharp (wall_beta_edge);
+    with the shared beta of 20 it does not, which biased the 3D smooth loss (REPORT.md §6)."""
+    p = make_params()
+    grid = grid_from_fn(lambda s, n: -0.35 * s + 0.0 * n)
+    course = sim3d.Course3D(length=jnp.asarray(150.0), x_start=jnp.asarray(0.0),
+                            piste_half_width=jnp.asarray(20.0), terrain=grid,
+                            gates=sim3d.plane_course(20, 10).gates)
+    n = 150
+    kappa = 0.05 * jnp.cos(jnp.arange(n) / 9.0)  # 20 m turns, heading swings around the fall line
+    run = lambda p3: sim3d.rollout3d(lambda kk, o, i: kk[i], kappa, course, p, n, p3)  # noqa: E731
+    _, traj = run(sim3d.Params3D(edge_max=10.0))
+    peak = float(jnp.max(traj.telemetry.edge))
+    limit = peak + np.radians(10.0)
+    soft, _ = run(sim3d.Params3D(edge_max=limit))
+    sharp, _ = run(sim3d.Params3D(edge_max=limit, wall_beta_edge=1146.0))
+    assert float(soft.wall) > 1.0  # the shared beta still charges seconds of wall
+    assert float(sharp.wall) < 1e-3
+    assert float(sharp.T) == pytest.approx(float(soft.T))  # the hard dynamics are unchanged
+
+
 # --- the Gran Risa course ------------------------------------------------------------------------
 
 

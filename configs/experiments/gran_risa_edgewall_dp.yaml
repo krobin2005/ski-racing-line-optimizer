@@ -1,0 +1,12 @@
+# Companion to gran_risa_edgewall.yaml: DP -> Adam (deterministic, one seed).
+experiment: gran_risa_edgewall
+
+course: {kind: gran_risa, seed: 0}
+policy: arc
+objective: {beta_miss: 200.0, miss_margin: 0.05}
+sim3d: {risk: {wall_beta_edge: 1146.0}}
+
+methods:
+  - {name: dp, label: dp_adam, refine: adam, adam: {lr: 0.05, lr_final: 0.005, lam_gate_start: 100.0}}
+
+seeds: [0]
