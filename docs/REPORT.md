@@ -345,10 +345,10 @@ On the Gran Risa it still ends almost 1 s worse, and the logs show why: its *fir
 | Adam | 74.88 ± 0.06 | 74.57 ± 0.06 | 1311.6 | 77.53 ± 0.24 |
 | CMA-ES (smooth) | 75.07 ± 0.07 | 74.76 ± 0.08 | 1312.2 | 77.25 ± 0.47 |
 | DP → Adam | 75.22 | 74.90 | 1312.6 | 76.21 (= DP) |
-| hybrid | *running* | | | 74.88 ± 0.10 |
+| hybrid | 74.92 ± 0.08 | 74.62 ± 0.08 | 1311.6 | 74.88 ± 0.10 |
 | *CMA-ES, hard score (reference)* | *74.80 ± 0.06* | *74.51 ± 0.06* | *1311.3* | |
 
-Every run is clean. Adam gains 2.65 s and now lands in the top group: against the 10-seed final runs it beats the GA (75.12 s; A12 = 1.0, p = 0.007), ties the hybrid (74.88 s; p = 0.94) and stays 0.08 s behind CMA-ES (A12 = 0.07, p = 0.03 uncorrected, with only 3 Adam seeds). Its lines are as short as CMA-ES's (1311.6 vs. 1311.3 m), and its peak loads (2.5–2.6 G) are the same. CMA-ES on the smooth loss improves too (77.25 → 75.07 s), so the smooth loss is now a good stand-in for the true score. DP → Adam improves on the DP line by 1.0 s.
+Every run is clean. Adam gains 2.65 s and now lands in the top group: against the 10-seed final runs it beats the GA (75.12 s; A12 = 1.0, p = 0.007), ties the hybrid (74.88 s; p = 0.94) and stays 0.08 s behind CMA-ES (A12 = 0.07, p = 0.03 uncorrected, with only 3 Adam seeds). Its lines are as short as CMA-ES's (1311.6 vs. 1311.3 m), and its peak loads (2.5–2.6 G) are the same. CMA-ES on the smooth loss improves too (77.25 → 75.07 s), so the smooth loss is now a good stand-in for the true score. DP → Adam improves on the DP line by 1.0 s. The hybrid's Adam phase is the exception: started at full penalty weight from CMA-ES's line, it still ends 0.31–0.36 s *worse* than that line (and worse than Adam from its usual start), so the hybrid's result is again its CMA-ES result. Part of that is the 5 cm margin, which CMA-ES's line, passing closer than 5 cm, has to give back; part is likely the stiff start (λ = 100 with a small learning rate). We have not separated the two.
 
 What remains is cost: Adam needs about 3,260 s of wall clock per run against about 150 s for CMA-ES, 20× more, for a line that is still slightly slower.
 
