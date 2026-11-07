@@ -1,5 +1,7 @@
 # Roadmap: 3D on the Gran Risa by November 30
 
+> **Update, November 7:** stages 1 and 2 are done (see Status). The project is now about the **Gran Risa in 3D**; 2D is its validation stage. The remaining work is the **race simulation** (§7).
+
 **Goal:** by November 30, 2026, optimize a racing line in 3D on the real Gran Risa (Alta Badia) terrain, with a GS course set on it. Camber, fall-away, rolls and compressions must affect speed, G-force and DNF risk. The 2D project becomes the validated foundation and the "stage 1" chapter of the report.
 
 **Time available:** 25 days (November 5–30).
@@ -102,6 +104,26 @@ That is also the cleanest Evolutionary Computing story: evolution for structure,
 1. **Gate set:** (a) FIS-faithful generated set with the real gate count *(recommended, fits the timeline)*, or (b) hand-digitized from race footage.
 2. **Which race:** December 21, 2025, run 1 (Marco Schwarz) is the most recent. Its FIS result PDF gives the gate count, start and finish.
 3. **Neural controller:** cut it, or keep it only as a stretch goal?
+
+## 7. Stage 3: race simulation (November 8–30)
+
+**Goal:** show the optimized lines *as a race* on the Gran Risa, not only as a static map: someone who has never seen the code should be able to watch the run and understand why the line is fast.
+
+Everything we need is already saved for each run. `telemetry.csv` holds position, height, speed, G, edge angle and normal load at every step, and `course_set.json` holds the gates. The terrain comes from `terrain3d.py`. **The simulation only plays back saved runs; nothing is re-optimized.**
+
+| Days | Work | Done when |
+| --- | --- | --- |
+| **Nov 8–9** | Agree on scope (this section); freeze the experiments. No new ablations unless one is needed for the report. | Scope agreed in a commit. |
+| **Nov 9–13** | **Replay v1** (`skiopt/analysis/replay3d.py`): the 3D terrain surface (hillshaded, exaggerated vertically if needed), piste outline, red/blue gates and the skier moving along the best CMA-ES line in real time. A panel shows speed, G, edge angle and a race clock. Export to MP4/GIF. | `python -m skiopt.analysis.replay3d results/gran_risa --method cmaes` writes `docs/reports/replay/cmaes.mp4`. |
+| **Nov 13–17** | **Broadcast view:** a camera that follows the skier down the hill. The clock is compared with Schwarz's official run-1 splits (ahead/behind, like the TV graphic). | The replay reads like a World Cup broadcast. |
+| **Nov 17–19** | **Head to head:** CMA-ES, GA, Adam, DP and the coach line as "ghost" skiers on the same run, so the time gaps show up as distance. | One video with every method racing; shown at the Nov 19 show-and-tell. |
+| **Nov 19–24** | *Optional:* an interactive viewer (rotate, scrub through the run) as a self-contained HTML page linked from the README. | Opens in a browser with no install. |
+| **Nov 19–28** | Reframe `REPORT.md` around the Gran Risa (2D becomes the validation chapter); a short demo notebook; team roles and GenAI disclosure; README pass for a non-specialist reader. | Report final; README tells the story from the top. |
+| **Nov 28–30** | Buffer; freeze for the Dec 1/3 presentations. | — |
+
+**Cut order if behind:** the interactive viewer, then head to head, then the broadcast camera. Replay v1 is the minimum.
+
+**Status (Nov 7):** done ahead of schedule in one step. Replay, broadcast cameras and head to head are all built into `skiopt/analysis/race_video.py`, and the video is at `docs/media/gran_risa_race.mp4`. Still open: the optional interactive viewer, and the report, notebook and documentation rows above.
 
 ## Sources
 
