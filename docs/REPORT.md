@@ -299,6 +299,7 @@ Each skier leans into its turns by its edge angle, and an overlay shows the lead
 
 What the replay makes visible:
 - **The grid search loses time steadily, not in one place.** The DP line is 0.26 s behind CMA-ES after 20 s, 0.69 s after 40 s and 1.3 s near the finish. Its lattice costs a little in almost every turn. The hand-made coach line loses far faster: 1.7 s, 6.1 s and 12.4 s behind at the same moments.
+- **Gradient descent alone falls behind early.** Adam is already 1.45 s behind CMA-ES after 40 s and finishes in 76.86 s. On the results board that places it among the real racers, between 3rd and 4th, while every evolutionary line beats Schwarz.
 - **The GA and CMA-ES lines are almost indistinguishable.** They stay within about 0.1 s of each other from start to finish.
 
 ## 6. Discussion
