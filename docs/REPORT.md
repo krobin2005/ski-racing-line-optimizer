@@ -291,6 +291,16 @@ The race was run on hard snow at −3 °C; our default ski–snow friction is μ
 
 Each 0.01 of friction costs the optimized line about 1.2–1.6 s, so snow conditions matter as much as most of the differences between methods. The unoptimized coach line loses about 1.5× as much, because it already runs slowly in the flat sections, where friction dominates gravity. Slow snow also raises the coach line's risk of a too-slow DNF (9.6% → 19.2%).
 
+### 5.7 The race, simulated *(`skiopt/analysis/race_video.py`, `docs/media/gran_risa_race.mp4`)*
+
+The tables compare final times, but a race is decided along the way. To show this, we replay every method's best line as a race: the skiers start together on the 3D Gran Risa and run in real time, so the distance between two of them on screen is their time gap at that moment. The replay uses each run's saved telemetry (position, speed, G, edge angle at every step) and re-simulates nothing.
+
+Each skier leans into its turns by its edge angle, and an overlay shows the leader's speed, G and edge angle against the boot-out limit. The camera cuts between chase, side, drone and finish shots, like a World Cup broadcast. A "Schwarz pace" ghost runs the fastest line at Marco Schwarz's average pace (76.00 s): his real line isn't public, so the ghost compares times, not lines. The video ends on a results board that ranks the simulated lines together with the real run-1 top 5.
+
+What the replay makes visible:
+- **The grid search loses time steadily, not in one place.** The DP line is 0.26 s behind CMA-ES after 20 s, 0.69 s after 40 s and 1.3 s near the finish. Its lattice costs a little in almost every turn. The hand-made coach line loses far faster: 1.7 s, 6.1 s and 12.4 s behind at the same moments.
+- **The GA and CMA-ES lines are almost indistinguishable.** They stay within about 0.1 s of each other from start to finish.
+
 ## 6. Discussion
 
 **Evolution wins the main comparison, and the objective is why.** CMA-ES on the true (hard) score is best or tied-best on every course, and Adam is never better than fourth. The cleanest evidence that the *objective* matters as much as the optimizer is CMA-ES itself: run on the smooth loss Adam uses, it falls to Adam's level on all three courses (Gran Risa 77.25 s vs. 74.80 s on the hard score). The ablations below trace that gap to two biased terms in the smooth loss; with both fixed, Adam comes within 0.1 s of CMA-ES on every course.
