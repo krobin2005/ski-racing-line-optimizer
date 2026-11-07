@@ -26,7 +26,7 @@ Evolutionary Computing independent project, DCS 340, Bates College. Kyle Robin a
 
 **[▶ docs/media/gran_risa_race.mp4](docs/media/gran_risa_race.mp4)** (1080p; on GitHub, open the file and click *View raw* to download it).
 
-Each skier is one optimizer's best line from the final runs, replayed on the real terrain. All of them start together, so the gap between two skiers on screen is their time gap. The camera cuts between a chase camera, a side camera on the piste edge, a drone shot and a finish camera. The on-screen graphics show:
+Each skier is one optimizer's best line from the final runs, replayed on the real terrain. All of them start together, so the gap between two skiers on screen is their time gap. The course is dressed like race day at the Gran Risa: red and blue GS flags (the racer passes between the turning pole and the outside flag), blue dye lines sprayed on the snow from each turning pole and across the slope, and a finish area modelled on photos of La Villa (red arch, dyed red finish line with timing posts, padded boards, blue dye stripes in the run-out, floodlights and a grandstand). The racers cross the line and skid to a stop in the run-out. The camera cuts between a chase camera, a side camera on the piste edge, a drone shot and a finish camera. The on-screen graphics show:
 - live standings with time gaps;
 - the leader's speed, G-force and edge angle, with a red mark at the boot-out limit (75.7°);
 - a course map;

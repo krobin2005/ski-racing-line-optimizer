@@ -56,6 +56,9 @@ SPLITS = [("INT 1", RACE["fastest_run1"]["int1_s"]), ("INT 2", RACE["fastest_run
           ("INT 3", RACE["fastest_run1"]["int3_s"])]
 BOOT_OUT_DEG = 75.7
 INTRO_S, OUTRO_S = 4.0, 8.0
+FINISH_BOARDS_FROM = 45.0   # m before the line: the red nets give way to the padded boards of the finish area
+RUNOUT = 75.0               # m of finish area past the line
+DYE_BLUE, DYE_RED = "#1f5fd0", "#d9251d"
 
 
 def _rgb(hex_colour: str) -> tuple[int, int, int]:
@@ -81,13 +84,14 @@ class Racer:
 
     def at(self, t: float) -> dict:
         """State at race time t (clamped to the finish)."""
-        tc = min(max(t, 0.0), self.T)
+        tc = min(max(t, 0.0), self.t[-1])  # the samples run past T: the racer coasts into the finish area
         g = lambda a: float(np.interp(tc, self.t, a))  # noqa: E731
         # heading from a short look-ahead along the line
         dt = 0.15
-        E1, N1 = float(np.interp(min(tc + dt, self.T), self.t, self.E)), float(np.interp(min(tc + dt, self.T), self.t, self.N))
+        end = self.t[-1]
+        E1, N1 = float(np.interp(min(tc + dt, end), self.t, self.E)), float(np.interp(min(tc + dt, end), self.t, self.N))
         E0, N0 = float(np.interp(max(tc - dt, 0), self.t, self.E)), float(np.interp(max(tc - dt, 0), self.t, self.N))
-        Z1, Z0 = float(np.interp(min(tc + dt, self.T), self.t, self.Z)), float(np.interp(max(tc - dt, 0), self.t, self.Z))
+        Z1, Z0 = float(np.interp(min(tc + dt, end), self.t, self.Z)), float(np.interp(max(tc - dt, 0), self.t, self.Z))
         h = np.array([E1 - E0, N1 - N0, Z1 - Z0])
         return {"E": g(self.E), "N": g(self.N), "Z": g(self.Z), "s": g(self.s), "v": g(self.v), "G": g(self.G),
                 "edge": g(self.edge), "kappa": g(self.kappa), "heading": h / (np.linalg.norm(h) + 1e-9),
@@ -95,6 +99,37 @@ class Racer:
 
     def time_at_s(self, s: float) -> float:
         return float(np.interp(s, self.s, self.t))
+
+
+def map_ext(frame, s, n):
+    """CourseFrame.to_map, continued straight past the finish line along the last tangent (the finish area)."""
+    s, n = np.asarray(s, float), np.asarray(n, float)
+    E, N = frame.to_map(np.minimum(s, frame.length), n)
+    over = np.maximum(s - frame.length, 0.0)
+    tx, ty = float(np.interp(frame.length, frame.s, frame.tx)), float(np.interp(frame.length, frame.s, frame.ty))
+    return E + over * tx, N + over * ty
+
+
+RUNOUT_DECEL = 4.0   # m/s², a hard skid to a stop after the finish line
+
+
+def coast(t, s, n, v, T, frame, hf):
+    """Samples after the finish: the racer carries on straight, braking at RUNOUT_DECEL until stopped."""
+    v0 = float(v[-1])
+    stop = v0 / RUNOUT_DECEL
+    tau = np.linspace(0, stop, 40)[1:]
+    d = v0 * tau - 0.5 * RUNOUT_DECEL * tau ** 2
+    s2, n2 = s[-1] + d, np.full_like(d, n[-1])
+    E, N = map_ext(frame, s2, n2)
+    return T + tau, s2, E, N, hf.height(E, N), v0 - RUNOUT_DECEL * tau
+
+
+def flag_spans(inside: float, outside: float, width: float = 0.75):
+    """(pole, far pole) of the two flags of a GS gate, as offsets n. The racer passes between the turning
+    pole and the outside pole, so each flag extends away from that gap: the inside flag on the far side of
+    the turning pole, the outside flag beyond the outside pole."""
+    d = np.sign(outside - inside) or 1.0
+    return [(inside, inside - d * width), (outside, outside + d * width)]
 
 
 def _telemetry(run_dir: Path) -> dict:
@@ -119,8 +154,15 @@ def load_racers(results: Path, methods: list[str] | None, build, hf) -> list[Rac
         t = np.concatenate([[0.0], t])
         pad = lambda a: np.concatenate([[a[0]], a])  # noqa: E731
         name, colour = RACERS.get(key, (key, "#cccccc"))
-        racers.append(Racer(key, name, colour, t, pad(tel["y"]), pad(E), pad(N), hf.height(pad(E), pad(N)),
-                            pad(tel["v"]), pad(tel["G"]), pad(tel["edge"]), pad(tel["kappa"]), float(champ["T"])))
+        T = float(champ["T"])
+        s, n, v = pad(tel["y"]), pad(tel["x"]), pad(tel["v"])
+        ct, cs, cE, cN, cZ, cv = coast(t, s, n, v, t[-1], build.frame, hf)
+        zeros = np.zeros_like(ct)
+        racers.append(Racer(key, name, colour, np.concatenate([t, ct]), np.concatenate([s, cs]),
+                            np.concatenate([pad(E), cE]), np.concatenate([pad(N), cN]),
+                            np.concatenate([hf.height(pad(E), pad(N)), cZ]), np.concatenate([v, cv]),
+                            np.concatenate([pad(tel["G"]), zeros + 1.0]), np.concatenate([pad(tel["edge"]), zeros]),
+                            np.concatenate([pad(tel["kappa"]), zeros]), T))
     racers.sort(key=lambda r: r.T)
     return racers
 
@@ -149,6 +191,8 @@ class Scene:
         self._trees()
         self._nets()
         self._gates()
+        self._dye()
+        self._finish_area()
         self._finish_arch()
         self.actors = {r.key: self._skier(r) for r in racers}
         self.trails = {}
@@ -201,7 +245,7 @@ class Scene:
         d, _ = tree.query(cand)
         keep = (d > 6) & (d < 140) & (rng.random(len(cand)) < np.clip(1.1 - d / 160, 0.2, 1.0))
         # the finish area is an open stadium, not forest
-        fe, fn = self.build.frame.to_map(self.build.frame.length, 0.0)
+        fe, fn = self.build.frame.to_map(self.build.spec.length, 0.0)
         keep &= np.hypot(cand[:, 0] - fe, cand[:, 1] - fn) > 90
         cand = cand[keep]
         if not len(cand):
@@ -220,10 +264,10 @@ class Scene:
 
     def _nets(self):
         """Red B-nets along the piste outline, 2 m tall, a few metres outside the edge."""
-        f = self.build.frame
+        f, b_len = self.build.frame, float(self.build.spec.length)
         for side_lo in (True, False):
             edge = self.build.piste_lo if side_lo else self.build.piste_hi
-            s = f.s[(f.s >= -5) & (f.s <= f.length + 5)]
+            s = f.s[(f.s >= -5) & (f.s <= b_len - FINISH_BOARDS_FROM)]
             n = np.interp(s, f.s, edge) + (-2.0 if side_lo else 2.0)
             E, N = f.to_map(s, n)
             Z = self.hf.height(E, N)
@@ -241,15 +285,14 @@ class Scene:
             colour = spec.gate_colour[i]
             s = float(spec.gate_y[i])
             inside, outside = float(spec.gate_x[i]), float(spec.outside_x[i])
-            direction = np.sign(outside - inside) or 1.0
-            for n_pole, toward in ((inside, direction), (outside, -direction)):
-                for dn in (0.0, 0.75 * toward):
-                    E, N = f.to_map(s, n_pole + dn)
+            for n_pole, n_far in flag_spans(inside, outside):
+                for n_p in (n_pole, n_far):
+                    E, N = f.to_map(s, n_p)
                     base = self.local(E, N, self.hf.height(E, N))
                     meshes[colour].append(self.pv.Cylinder(center=base + [0, 0, 0.95], direction=(0, 0, 1),
                                                            radius=0.035, height=1.9, resolution=8))
                 Ea, Na = f.to_map(s, n_pole)
-                Eb, Nb = f.to_map(s, n_pole + 0.75 * toward)
+                Eb, Nb = f.to_map(s, n_far)
                 a = self.local(Ea, Na, self.hf.height(Ea, Na) + 1.2)
                 b = self.local(Eb, Nb, self.hf.height(Eb, Nb) + 1.2)
                 panel = self.pv.Plane(center=(a + b) / 2 + [0, 0, 0.3], direction=np.cross(b - a, [0, 0, 1]),
@@ -260,22 +303,145 @@ class Scene:
                 hexc = {"red": "#e0201b", "blue": "#1a5fd6"}[colour]
                 self.p.add_mesh(self.pv.merge(ms), color=hexc, ambient=0.45, diffuse=0.7)
 
+    # ------------------------------------------------------------------ dye, finish area
+
+    def _ribbon(self, E, N, width, lift=0.08):
+        """A flat strip of the given width draped on the snow along the map polyline (E, N)."""
+        E, N = np.asarray(E, float), np.asarray(N, float)
+        dE, dN = np.gradient(E), np.gradient(N)
+        norm = np.hypot(dE, dN) + 1e-9
+        pe, pn = -dN / norm * width / 2, dE / norm * width / 2
+        Ea, Na, Eb, Nb = E + pe, N + pn, E - pe, N - pn
+        a = self.local(Ea, Na, self.hf.height(Ea, Na) + lift)
+        b = self.local(Eb, Nb, self.hf.height(Eb, Nb) + lift)
+        k = len(E)
+        faces = np.hstack([[4, i, i + 1, k + i + 1, k + i] for i in range(k - 1)])
+        return self.pv.PolyData(np.vstack([a, b]), faces=faces)
+
+    def _course_ribbon(self, s, n, width, lift=0.08):
+        E, N = map_ext(self.build.frame, s, n)
+        return self._ribbon(E, N, width, lift)
+
+    def _paint(self, ribbons, colour, opacity=0.9):
+        if ribbons:
+            self.p.add_mesh(self.pv.merge(ribbons), color=colour, opacity=opacity, ambient=0.75, diffuse=0.35,
+                            specular=0.0)
+
+    def finish_width(self, s):
+        """(n_lo, n_hi) of the course at s: the piste, opening out into the finish area after the line."""
+        f, b = self.build.frame, self.build
+        s = np.asarray(s, float)
+        lo = np.interp(np.minimum(s, self.build.spec.length), f.s, b.piste_lo)
+        hi = np.interp(np.minimum(s, self.build.spec.length), f.s, b.piste_hi)
+        a = np.clip((s - self.build.spec.length) / 18.0, 0, 1)
+        a = a * a * (3 - 2 * a)
+        return (1 - a) * lo + a * -26.0, (1 - a) * hi + a * 26.0
+
+    def _dye(self):
+        """Blue dye on the race piste, as sprayed at the Gran Risa so racers can read the snow in flat light:
+        a stroke from every turning pole toward the next gate, and lines across the slope every few gates."""
+        spec, f = self.build.spec, self.build.frame
+        blue = []
+        for i in range(spec.n_gates - 1):
+            s0, n0 = float(spec.gate_y[i]), float(spec.gate_x[i])
+            s1, n1 = float(spec.gate_y[i + 1]), float(spec.gate_x[i + 1])
+            u = np.linspace(0.06, 0.06 + 10.0 / max(np.hypot(s1 - s0, n1 - n0), 1.0), 16)
+            blue.append(self._course_ribbon(s0 + u * (s1 - s0), n0 + u * (n1 - n0), 0.45))
+            if i % 3 == 1:  # a line across the slope between gates, slightly diagonal
+                sm = 0.5 * (s0 + s1)
+                lo, hi = self.finish_width(sm)
+                n = np.linspace(float(lo) + 1.0, float(hi) - 1.0, 30)
+                blue.append(self._course_ribbon(sm + 0.12 * (n - n.mean()), n, 0.4))
+        self._paint(blue, DYE_BLUE, 0.85)
+
+    def _finish_area(self):
+        """The finish at La Villa: padded boards, the dyed finish line, blue stripes in the run-out,
+        floodlights and a grandstand. Generic (no sponsor logos), laid out after photos of the race."""
+        pv, f, hf = self.pv, self.build.frame, self.hf
+        L = float(self.build.spec.length)  # the finish line (the map frame runs on 40 m past it)
+        s = np.linspace(L - FINISH_BOARDS_FROM, L + RUNOUT, 120)
+        lo, hi = self.finish_width(s)
+        # padded boards, 1.2 m tall, alternating blue and white panels
+        for edge, out in ((lo, -1.0), (hi, 1.0)):
+            E, N = map_ext(f, s, edge + out * 1.0)
+            Z = hf.height(E, N)
+            bottom, top = self.local(E, N, Z), self.local(E, N, Z + 1.2)
+            k = len(s)
+            faces = np.hstack([[4, i, i + 1, k + i + 1, k + i] for i in range(k - 1)])
+            mesh = pv.PolyData(np.vstack([bottom, top]), faces=faces)
+            cols = np.array([[22, 70, 170] if (i // 3) % 2 == 0 else [240, 240, 240] for i in range(k - 1)], np.uint8)
+            mesh.cell_data["rgb"] = cols
+            self.p.add_mesh(mesh, scalars="rgb", rgb=True, ambient=0.55, diffuse=0.6)
+        # the finish line: a broad red dye band right under the arch
+        lo0, hi0 = self.finish_width(L)
+        n = np.linspace(float(lo0), float(hi0), 30)
+        self._paint([self._course_ribbon(np.full_like(n, L), n, 1.0, lift=0.15)], DYE_RED, 0.95)
+        # diagonal blue stripes and a red border band in the run-out
+        stripes = []
+        for k0 in np.arange(L + 10, L + RUNOUT - 8, 6.5):
+            n = np.linspace(-22, 22, 90)
+            ss = k0 + 0.55 * n
+            ok = (ss > L + 4) & (ss < L + RUNOUT - 4)
+            if ok.sum() > 3:
+                stripes.append(self._course_ribbon(ss[ok], n[ok], 1.4, lift=0.18))
+        self._paint(stripes, DYE_BLUE, 0.8)
+        band = [self._course_ribbon(np.full(60, L + d), np.linspace(-24, 24, 60), 0.5, lift=0.18) for d in (4.0, RUNOUT - 4)]
+        self._paint(band, DYE_RED, 0.9)
+        # floodlight towers behind the boards
+        lights = []
+        for d, side in ((-40, -1), (-25, 1), (25, -1), (60, -1)):
+            lo_d, hi_d = self.finish_width(L + d)
+            nn = (float(hi_d) + 6) if side > 0 else (float(lo_d) - 6)
+            E, N = map_ext(f, L + d, nn)
+            base = self.local(E, N, hf.height(E, N))
+            lights.append(pv.Cylinder(center=base + [0, 0, 9], direction=(0, 0, 1), radius=0.25, height=18))
+            lights.append(pv.Box(bounds=(base[0] - 1.4, base[0] + 1.4, base[1] - 0.4, base[1] + 0.4,
+                                         base[2] + 17.5, base[2] + 19.3)))
+        self.p.add_mesh(pv.merge(lights), color="#9a9fa6", ambient=0.4)
+        # a grandstand on the outside of the run-out, filled with a speckled crowd
+        rng = np.random.default_rng(3)
+        rows = []
+        cols = []
+        for r in range(6):
+            for d in np.linspace(12, RUNOUT - 8, 26):
+                n0 = 29.0 + r * 1.6
+                E, N = map_ext(f, L + d, n0)
+                z = hf.height(*map_ext(f, L + d, 27.0)) + 0.6 + r * 0.9
+                c = self.local(E, N, z)
+                rows.append(pv.Box(bounds=(c[0] - 1.3, c[0] + 1.3, c[1] - 1.3, c[1] + 1.3, c[2] - 0.6 - r * 0.9, c[2])))
+                cols.append(rng.choice([[200, 40, 40], [30, 30, 40], [230, 230, 235], [40, 80, 170], [220, 170, 40]]))
+        stand = pv.merge(rows)
+        per = stand.n_cells // len(rows)
+        stand.cell_data["rgb"] = np.repeat(np.array(cols, np.uint8), per, axis=0)
+        self.p.add_mesh(stand, scalars="rgb", rgb=True, ambient=0.5, diffuse=0.6)
+
     def _finish_arch(self):
         f, b = self.build.frame, self.build
-        for s, colour in ((0.0, "#1c1c1e"), (f.length, "#d62d20")):
+        for s, colour in ((0.0, "#1c1c1e"), (float(b.spec.length), "#d62d20")):
             lo, hi = float(np.interp(s, f.s, b.piste_lo)), float(np.interp(s, f.s, b.piste_hi))
+            if s > 0:  # the finish arch stands a little outside the dyed line, over the whole width
+                lo, hi = lo - 1.5, hi + 1.5
             posts = []
             for n in (lo, hi):
                 E, N = f.to_map(s, n)
                 base = self.local(E, N, self.hf.height(E, N))
                 posts.append(base)
-                self.p.add_mesh(self.pv.Cylinder(center=base + [0, 0, 3.5], direction=(0, 0, 1), radius=0.35, height=7),
-                                color=colour)
+                self.p.add_mesh(self.pv.Cube(center=base + [0, 0, 3.6], x_length=1.0, y_length=1.0, z_length=7.2),
+                                color=colour, ambient=0.45)
             a, c = posts
-            top = max(a[2], c[2]) + 6.0
-            banner = self.pv.Plane(center=[(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, top],
-                                   direction=np.cross(c - a, [0, 0, 1]), i_size=1.6, j_size=np.linalg.norm(c - a))
-            self.p.add_mesh(banner, color=colour, ambient=0.6)
+            top = max(a[2], c[2]) + 6.4
+            span = np.linalg.norm(c - a)
+            beam = self.pv.Cube(center=[(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, top], x_length=span + 1.0,
+                                y_length=0.8, z_length=1.6)
+            ang = np.degrees(np.arctan2(c[1] - a[1], c[0] - a[0]))
+            beam.rotate_z(ang, point=beam.center, inplace=True)
+            self.p.add_mesh(beam, color=colour, ambient=0.55)
+            if s > 0:  # photocell timing posts at each end of the line
+                for n in (lo + 1.0, hi - 1.0):
+                    E, N = f.to_map(s, n)
+                    base = self.local(E, N, self.hf.height(E, N))
+                    self.p.add_mesh(self.pv.Cylinder(center=base + [0, 0, 0.6], direction=(0, 0, 1), radius=0.07,
+                                                     height=1.2), color="#f2c200")
 
     def _skier(self, r: Racer):
         pv = self.pv
@@ -366,8 +532,9 @@ def camera(mode: str, t: float, lead: dict, scene: Scene, t_end: float, total_T:
     skier = np.array(L(lead["E"], lead["N"], lead["Z"]))
     if mode == "finish":
         # on the open piste just past the finish line, off to one side, looking back up at the racers
-        n_cam = 0.55 * float(np.interp(f.length, f.s, b.piste_hi))
-        pos = np.array(L(*_course_point(b, hf, f.length + 6, n_cam))) + [0, 0, 5]
+        # in the finish area, off to the side of the run-out, looking back up through the arch
+        E, N = map_ext(f, float(b.spec.length) + 58, 12.0)
+        pos = np.array(L(E, N, hf.height(E, N) + 9.0))
         return pos, skier + [0, 0, 1.0], (0, 0, 1)
     if mode == "side":
         # just inside the safety net, ahead of the racer, alternating sides between shots
@@ -501,11 +668,12 @@ class Graphics:
         # Schwarz split pop-up for 4 s after each split time
         for label, ts in SPLITS + [("FINISH", SCHWARZ_T)]:
             if ts <= race_t < ts + 4:
-                d.rectangle((self.W - cw - 30 * k, 132 * k, self.W - 30 * k, 180 * k), fill=(214, 45, 32, 230))
-                d.text((self.W - cw - 14 * k, 140 * k), f"SCHWARZ {label}  {ts:.2f}", font=self.f_small, fill="white")
+                txt = f"SCHWARZ {label}  {ts:.2f}"
+                bw = max(cw, d.textlength(txt, font=self.f_small) + 32 * k)
+                d.rectangle((self.W - bw - 30 * k, 132 * k, self.W - 30 * k, 180 * k), fill=(214, 45, 32, 230))
+                d.text((self.W - bw - 14 * k, 140 * k), txt, font=self.f_small, fill="white")
 
         # left: standings (by progress), gap = time behind the leader at the same point
-        rows = sorted(racers, key=lambda r: (-(states[r.key]["s"]), r.T) if race_t < r.T else (-1e9, r.T))
         rows = sorted(racers, key=lambda r: (0, r.T) if states[r.key]["finished"] else (1, -states[r.key]["s"]))
         front = rows[0]
         y = 160 * k
