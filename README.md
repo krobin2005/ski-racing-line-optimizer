@@ -12,6 +12,8 @@ The racing line is what we optimize. Evolutionary algorithms (CMA-ES and a genet
 
 Evolutionary Computing independent project, DCS 340, Bates College. Kyle Robin and Liam Baron. Who did what, and how we used GenAI: [docs/TEAM.md](docs/TEAM.md).
 
+**New to the project? Start with [notebooks/walkthrough.ipynb](notebooks/walkthrough.ipynb).** It's a guided tour for someone who hasn't taken evolutionary computing: the mountain, the course, what a "line" is, a live CMA-ES run, the final results and the race video. It runs top to bottom in a few minutes (`pip install jupyter`, then open it from the repo).
+
 ### How the project is built
 
 1. **Stage 1 — 2D validation (done).** A simplified skier on a flat tilted plane, used to build and test the physics, the FIS course rules, the crash model and every optimizer before moving to real terrain. Results: [docs/reports/final_easy](docs/reports/final_easy/SUMMARY.md), [final_trap](docs/reports/final_trap/SUMMARY.md).
@@ -106,5 +108,7 @@ Results go to `results/<experiment>/<method>/seed_<n>/` (git-ignored): `manifest
 | Sensitivity: snow friction, 3D carving loss | Done: [μ](docs/reports/sensitivity_mu/SENSITIVITY.md), [k_turn](docs/reports/sensitivity_k_turn/SENSITIVITY.md). About 1.3 s per 0.01 of friction. |
 | Ablation: sharp (unbiased) gate penalty for the gradient methods | Sharp penalty done (REPORT.md §6: removes the bias, Adam 1.6–1.9 s faster on the Gran Risa but clips gates by mm–cm); 5 cm margin done: all runs clean, Adam's gap to CMA-ES halves on the Gran Risa and DP → Adam beats DP (75.57 vs 75.94 s); with the margin Adam ties CMA-ES on the trap course (52.07 vs 52.05); with a sharp 3D edge-angle wall too, Adam reaches 74.88 s on the Gran Risa (CMA-ES 74.80) — REPORT.md §6 |
 | **Stage 3: race simulation on the 3D Gran Risa** (broadcast cameras, head-to-head ghosts, live telemetry, Schwarz's splits, results vs. the real top 5) | **Done** (Nov 7): [video](docs/media/gran_risa_race.mp4), `skiopt/analysis/race_video.py` |
-| Report reframed around the Gran Risa; README and notebook for a non-specialist reader; team roles; GenAI disclosure | To do, target Nov 30 |
+| Walkthrough notebook for a non-specialist reader | **Done** (Nov 7): [notebooks/walkthrough.ipynb](notebooks/walkthrough.ipynb) |
+| Team roles and GenAI disclosure | Draft with TODOs for Kyle and Liam: [docs/TEAM.md](docs/TEAM.md) |
+| Report reframed around the Gran Risa | To do, target Nov 30 |
 | Neural controller | Stretch (cut first, see the roadmap) |
