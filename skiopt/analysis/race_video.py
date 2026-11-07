@@ -59,6 +59,9 @@ INTRO_S, OUTRO_S = 4.0, 8.0
 FINISH_BOARDS_FROM = 45.0   # m before the line: the red nets give way to the padded boards of the finish area
 RUNOUT = 75.0               # m of finish area past the line
 DYE_BLUE, DYE_RED = "#1f5fd0", "#d9251d"
+START_HALF_W, START_DEPTH = 2.6, 6.0   # start house (m)
+START_SHOT_S = 1.6                     # seconds of the start camera before the broadcast cuts begin
+START_CAM = (11.0, 6.0, 3.5)           # start camera in start coordinates (downhill, left, up)
 
 
 def _rgb(hex_colour: str) -> tuple[int, int, int]:
@@ -104,10 +107,11 @@ class Racer:
 def map_ext(frame, s, n):
     """CourseFrame.to_map, continued straight past the finish line along the last tangent (the finish area)."""
     s, n = np.asarray(s, float), np.asarray(n, float)
-    E, N = frame.to_map(np.minimum(s, frame.length), n)
+    E, N = frame.to_map(np.clip(s, 0.0, frame.length), n)
     over = np.maximum(s - frame.length, 0.0)
     tx, ty = float(np.interp(frame.length, frame.s, frame.tx)), float(np.interp(frame.length, frame.s, frame.ty))
-    return E + over * tx, N + over * ty
+    under = np.minimum(s, 0.0)  # and straight back uphill before the start
+    return E + over * tx + under * float(frame.tx[0]), N + over * ty + under * float(frame.ty[0])
 
 
 RUNOUT_DECEL = 4.0   # m/s², a hard skid to a stop after the finish line
@@ -194,6 +198,7 @@ class Scene:
         self._dye()
         self._finish_area()
         self._finish_arch()
+        self._start_house()
         self.actors = {r.key: self._skier(r) for r in racers}
         self.trails = {}
         self.p.camera.view_angle = 42.0
@@ -213,7 +218,17 @@ class Scene:
         xs = hf.x0 + (np.arange(j0, j1) + 0.5) * hf.cell
         ys = hf.y0 + (np.arange(i0, i1) + 0.5) * hf.cell
         X, Y = np.meshgrid(xs, ys)
-        Z = hf.z[i0:i1, j0:j1]
+        Z = hf.z[i0:i1, j0:j1].copy()
+        # the start platform is groomed flat: level the snow under and around the start house
+        self.start_axes = self._start_frame()
+        o, a, b, _ = self.start_axes
+        z0 = o[2] + self.origin[2]
+        dx, dy = X - (o[0] + self.origin[0]), Y - (o[1] + self.origin[1])
+        pa, pb = dx * a[0] + dy * a[1], dx * b[0] + dy * b[1]
+        out = np.maximum(np.maximum(-START_DEPTH - 3 - pa, 0), np.maximum(np.abs(pb) - START_HALF_W - 3, 0))
+        # cut only behind the gate: downhill of it the racers ski on the real slope
+        w = np.clip(1 - out / 5.0, 0, 1) * np.clip(1.0 - pa / 1.5, 0, 1)
+        Z = w * z0 + (1 - w) * Z
         L = self.local(X, Y, Z)
         grid = self.pv.StructuredGrid(L[..., 0], L[..., 1], L[..., 2])
         outline = T.osm_outline(T.DATA / "gran_risa" / "osm_pistes.json")
@@ -415,9 +430,118 @@ class Scene:
         stand.cell_data["rgb"] = np.repeat(np.array(cols, np.uint8), per, axis=0)
         self.p.add_mesh(stand, scalars="rgb", rgb=True, ambient=0.5, diffuse=0.6)
 
+    # ------------------------------------------------------------------ start
+
+    def _start_frame(self):
+        """Origin and axes at the start: a = downhill along the course, b = left, c = up. The origin is
+        where the racers stand (s = 0) at the height of the start platform."""
+        f = self.build.frame
+        n0 = float(self.build.spec.x_start)
+        E, N = map_ext(f, 0.0, n0)
+        tx, ty = float(f.tx[0]), float(f.ty[0])
+        a = np.array([tx, ty, 0.0])
+        b = np.array([-ty, tx, 0.0])
+        o = self.local(E, N, self.hf.height(E, N))
+        return o, a, b, np.array([0, 0, 1.0])
+
+    def _box(self, lo, hi):
+        """An axis-aligned box in start coordinates (a, b, c), as a mesh in the scene."""
+        o, a, b, c = self.start_axes
+        m = self.pv.Box(bounds=(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]))
+        p = m.points.copy()
+        m.points = o + p[:, :1] * a + p[:, 1:2] * b + p[:, 2:3] * c
+        return m
+
+    def _text(self, txt, centre, height, facing=+1, depth=0.06):
+        """3D lettering on a wall facing downhill (facing=+1) or sideways to the left/right (facing=+-2)."""
+        o, a, b, c = self.start_axes
+        m = self.pv.Text3D(txt, depth=depth)
+        m.points *= height / 1.14  # Text3D capitals are ~1.14 units tall
+        x, y, z = m.points[:, 0], m.points[:, 1], m.points[:, 2]
+        if abs(facing) == 1:   # facing downhill (+1, read from below) or uphill (-1, read by the racer)
+            right, out = b * facing, a * facing
+        else:                   # on a side wall facing +b (left) or -b (right)
+            s = np.sign(facing)
+            right, out = -a * s, b * s
+        ca, cb, cc = centre
+        m.points = o + ca * a + cb * b + cc * c + x[:, None] * right + y[:, None] * c + z[:, None] * out
+        return m
+
+    def _start_house(self):
+        """The start, after photos of World Cup starts: a roofed start house on a platform, open downhill,
+        with padded side panels, the timing wand, banner boards on every wall, a start clock and coaches.
+        Sponsor boards are blank colour blocks: no real logos."""
+        self.start_axes = self._start_frame()
+        box = self._box
+        red, white, dark, wood = [], [], [], []
+        W, D, H = START_HALF_W, START_DEPTH, 3.4   # half-width, depth and wall height of the house (m)
+        floor = 0.0
+        wand_a = 1.0                      # the timing wand, just in front of the racers' boots
+        # platform under the house and a short groomed ramp in front of it (the slope falls away fast)
+        wood.append(box((-D - 1.0, -W - 1.5, -3.0), (wand_a + 0.4, W + 1.5, floor)))
+        # walls: back and two sides, red with a white banner band; roof slab with a slight overhang
+        red.append(box((-D, -W, floor), (-D + 0.25, W, H)))
+        for side in (-1, 1):
+            red.append(box((-D, side * W - 0.125, floor), (wand_a - 0.3, side * W + 0.125, H)))
+            white.append(box((-D + 0.6, side * (W + 0.13) - 0.02, 1.5), (wand_a - 0.8, side * (W + 0.13) + 0.02, 2.4)))
+        dark.append(box((-D - 0.4, -W - 0.5, H), (wand_a + 0.2, W + 0.5, H + 0.35)))
+        # fascia over the opening, white, with START on it
+        white.append(box((wand_a - 0.45, -W - 0.5, H - 0.9), (wand_a - 0.3, W + 0.5, H)))
+        # the start gate: two padded panels either side of the racer, the wand between them
+        for side in (-1, 1):
+            red.append(box((wand_a - 0.35, side * 0.75 - 0.12, floor), (wand_a + 0.05, side * 0.75 + 0.12, 1.25)))
+            dark.append(box((wand_a - 0.1, side * 0.62 - 0.07, 0.35), (wand_a + 0.05, side * 0.62 + 0.07, 0.55)))
+        wand = self.pv.Cylinder(radius=0.02, height=1.2, direction=(0, 1, 0))
+        o, a, b, c = self.start_axes
+        wand.points = o + wand.points[:, :1] * a + wand.points[:, 1:2] * b + (wand.points[:, 2:3] + 0.45) * c \
+            + wand_a * a
+        # sponsor-style banner boards along the platform edge and beside the gate (blank colour blocks)
+        boards = []
+        cols = ["#1b3f8f", "#f2f2f2", "#c8102e", "#111111", "#f2c200", "#1b3f8f"]
+        for i, col in enumerate(cols):
+            a0 = -D + i * (D + wand_a) / len(cols)
+            for side in (-1, 1):
+                boards.append((box((a0 + 0.05, side * (W + 1.4) - 0.04, floor),
+                                   (a0 + (D + wand_a) / len(cols) - 0.05, side * (W + 1.4) + 0.04, 0.9)), col))
+        # start clock on a post to the racers' left, facing the gate
+        dark.append(box((wand_a + 0.6, W + 0.6, floor), (wand_a + 0.75, W + 0.75, 2.2)))
+        dark.append(box((wand_a + 0.2, W + 0.2, 2.2), (wand_a + 1.2, W + 1.4, 2.9)))
+        clock = self._text("0:10", (wand_a + 0.19, W + 0.8, 2.55), 0.45, facing=-1, depth=0.03)
+        # coaches beside the gate
+        people = []
+        rng = np.random.default_rng(5)
+        for (pa, pb) in ((wand_a + 2.0, W + 1.0), (wand_a + 2.6, -W - 0.8), (wand_a + 1.4, -W - 1.6)):
+            z0 = float(self.hf.height(*[q for q in self._start_map(pa, pb)])) - float(o[2] + self.origin[2])
+            people.append(box((pa - 0.2, pb - 0.25, z0), (pa + 0.2, pb + 0.25, z0 + 1.45)))
+            people.append(box((pa - 0.13, pb - 0.13, z0 + 1.45), (pa + 0.13, pb + 0.13, z0 + 1.75)))
+        txt = [self._text("START", (wand_a - 0.29, 0.0, H - 0.65), 0.55),
+               self._text("GRAN RISA", (-D / 2 + 0.3, W + 0.16, 1.95), 0.5, facing=2),
+               self._text("GRAN RISA", (-D / 2 + 0.3, -W - 0.16, 1.95), 0.5, facing=-2)]
+        add = self.p.add_mesh
+        add(self.pv.merge(red), color="#c8102e", ambient=0.45, diffuse=0.7)
+        add(self.pv.merge(white), color="#f4f4f4", ambient=0.5, diffuse=0.6)
+        add(self.pv.merge(dark), color="#22252b", ambient=0.4, diffuse=0.6)
+        add(self.pv.merge(wood), color="#e9edf2", ambient=0.5, diffuse=0.6)   # snow-covered platform
+        add(wand, color="#d9dde3", ambient=0.5, specular=0.6)
+        for m, col in boards:
+            add(m, color=col, ambient=0.5, diffuse=0.6)
+        add(clock, color="#f2c200", ambient=0.9)
+        add(self.pv.merge(txt[:1]), color="#c8102e", ambient=0.8)
+        add(self.pv.merge(txt[1:]), color="white", ambient=0.8)
+        add(self.pv.merge(people), color="#1d2c4a", ambient=0.4)
+
+    def start_point(self, abc):
+        o, a, b, c = self.start_axes
+        return o + abc[0] * a + abc[1] * b + abc[2] * c
+
+    def _start_map(self, pa, pb):
+        o, a, b, c = self.start_axes
+        p = o + pa * a + pb * b
+        return p[0] + self.origin[0], p[1] + self.origin[1]
+
     def _finish_arch(self):
         f, b = self.build.frame, self.build
-        for s, colour in ((0.0, "#1c1c1e"), (float(b.spec.length), "#d62d20")):
+        for s, colour in ((float(b.spec.length), "#d62d20"),):
             lo, hi = float(np.interp(s, f.s, b.piste_lo)), float(np.interp(s, f.s, b.piste_hi))
             if s > 0:  # the finish arch stands a little outside the dyed line, over the whole width
                 lo, hi = lo - 1.5, hi + 1.5
@@ -515,10 +639,15 @@ def camera(mode: str, t: float, lead: dict, scene: Scene, t_end: float, total_T:
         a = (t + INTRO_S) / INTRO_S
         a = a * a * (3 - 2 * a)
         far = np.array(L(*_course_point(b, hf, 220.0))) + [0, 0, 260]
-        near = np.array(L(*_course_point(b, hf, -30.0))) + [0, 0, 16]
+        near = scene.start_point(START_CAM)
         pos = (1 - a) * far + a * near
-        foc = (1 - a) * np.array(L(*_course_point(b, hf, 500.0))) + a * np.array(L(*_course_point(b, hf, 15.0)))
+        af = min(1.0, (t + INTRO_S) / (0.65 * INTRO_S))  # the look settles on the start house first
+        af = af * af * (3 - 2 * af)
+        foc = (1 - af) * np.array(L(*_course_point(b, hf, 500.0))) + af * scene.start_point((-1.0, 0.0, 1.5))
         return pos, foc, (0, 0, 1)
+    if t < START_SHOT_S and mode == "broadcast":  # out of the gate, seen from beside the start ramp
+        skier = np.array(L(lead["E"], lead["N"], lead["Z"]))
+        return scene.start_point(START_CAM), skier + [0, 0, 1.0], (0, 0, 1)
     if mode == "overhead":
         p = np.array(L(lead["E"], lead["N"], lead["Z"]))
         tx, ty = np.interp(s, f.s, f.tx), np.interp(s, f.s, f.ty)
@@ -632,7 +761,7 @@ class Graphics:
 
         # name tags above each skier; tags that would overlap are stacked upwards, leader's lowest
         placed = []
-        for r in racers:  # sorted fastest first
+        for r in (racers if title_alpha <= 0 else []):  # sorted fastest first; none under the title card
             st = states[r.key]
             p = scene.to_screen(scene.local(st["E"], st["N"], st["Z"] + 3.2))
             if p is None or not (0 < p[0] < self.W and 0 < p[1] < self.H):
@@ -809,7 +938,8 @@ def render(results: Path, out: Path, methods=None, camera_mode="broadcast", fps=
         lead_r = next((r for r in racers if not states[r.key]["finished"] and r.key != "schwarz_pace"), racers[0])
         lead = states[lead_r.key]
         mode_key = "intro" if t < 0 else (camera_mode if camera_mode != "broadcast" else
-                                           ("finish" if t > racers[0].T - 4.5 else int(t // 7.5)))
+                                           ("finish" if t > racers[0].T - 4.5 else
+                                            "start" if t < START_SHOT_S else int(t // 7.5)))
         pos, foc, up = camera(camera_mode, t if t < 0 else min(t, racers[0].T), lead, scene, race_end, racers[0].T)
         pos, foc = smooth(pos, foc, mode_key, alpha=0.18 if t >= 0 else 1.0)
         scene.p.camera.position, scene.p.camera.focal_point, scene.p.camera.up = tuple(pos), tuple(foc), tuple(up)
