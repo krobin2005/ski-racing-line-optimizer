@@ -4,7 +4,7 @@
 
 ## How we worked
 
-**We built the project together.** Most sessions were joint: we designed, wrote and checked the code side by side. Whose laptop the commits came from depended on which of us had GenAI usage left that day, not on who did the work. **The author name on a commit says whose computer it was made on, not who did the work**, so the git log alone is not a record of who did what.
+**We built the project together.** Both of us were present for every planning session, coding session and prompt: we designed, wrote and checked everything side by side. Because of Claude usage limits we worked on two laptops at different times, and whose laptop a commit came from depended on which of us had usage left that day, not on who did the work. **The author name on a commit says whose computer it was made on, not who did the work**, so the git log alone is not a record of who did what.
 
 ## What we built (jointly)
 
@@ -17,15 +17,7 @@
 
 ## Individual contributions
 
-**TODO (each of you):** the parts you led or know best, so you can be graded separately. For example: the ideas you brought, the design decisions you argued for, the bugs you found, the parts of the code you can explain line by line, and the presentation and interview prep.
-
-### Kyle Robin
-
-**TODO (Kyle):** for example, the project idea and ski-racing expertise; course and equipment choices (the Völkl Racetiger GS 193 / Lange ZB setup in §2.2 of the report); checking the race simulation against the real Gran Risa (start house, dye lines, finish area).
-
-### Liam Baron
-
-**TODO (Liam):**
+**There is no split to report.** We did not divide the project into halves or give parts to one person. Each of us did every part of it together with the other, so each of us contributed to, and can explain, all of the work listed above. Each of us will answer for the whole project in a separate interview.
 
 ### Decisions we made together
 
