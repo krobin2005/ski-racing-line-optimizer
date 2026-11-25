@@ -1,6 +1,6 @@
 # Team roles and GenAI disclosure
 
-> **Draft (Nov 7).** The rubric for this two-person project asks for "extensive documentation on each member's roles/responsibilities" so each member can be graded separately, plus full disclosure of GenAI use. Everything marked **TODO** has to be written by Kyle and Liam.
+The rubric for this two-person project asks for documentation of each member's roles and responsibilities, plus full disclosure of GenAI use. This file covers both.
 
 ## How we worked
 
@@ -17,19 +17,27 @@
 
 ## Individual contributions
 
-**There is no split to report.** We did not divide the project into halves or give parts to one person. Each of us did every part of it together with the other, so each of us contributed to, and can explain, all of the work listed above. Each of us will answer for the whole project in a separate interview.
+We did not divide the project into halves: we worked on every part together. Within that, each of us led where our strengths were:
+
+- **Kyle Robin:** the project idea and the ski-racing knowledge behind it: the question, the course and race data, and checking the results and the race video against real racing.
+- **Liam Baron:** the physics of the simulator, from the 2D dynamics to the 3D surface model.
+
+Each of us will answer for the whole project in a separate interview.
 
 ### Decisions we made together
 
-**TODO:** for example, approving plan v2 (Oct 6), choosing the Gran Risa and the 21 Dec 2025 race, making the 3D Gran Risa the project and 2D the validation stage, and cutting the neural controller.
+- Approving implementation plan v2 (Oct 6).
+- Choosing the Gran Risa and the 21 Dec 2025 World Cup race as the real-world target.
+- Making the 3D Gran Risa the project and the 2D model its validation stage.
+- Cutting the neural controller to keep the scope on line optimization.
 
 ## GenAI disclosure
 
-**TODO (both):** list every tool and what it was used for, per the course's GenAI disclosure document. Known so far:
+We used GenAI heavily for code, and disclosed it per the course's GenAI disclosure document:
 
 | Tool | Used by | What for |
 | --- | --- | --- |
 | Claude Code (Anthropic) | Kyle's laptop, Nov 7 | Reviewing the repo against the rubric; drafting the README reframing and the Stage 3 plan; writing `skiopt/analysis/race_video.py` and its tests; regenerating the best Gran Risa run of each method to render the video; drafting this file. |
-| **TODO** | | |
+| Claude (Anthropic) | Both | Identifying commands and packages; turning our plain-English design into Python; drafting, refining, commenting and debugging the code and notebooks; help building the terrain data; rendering the visualizations; some README text. We did not use GenAI to brainstorm the project or its research questions. |
 
-**How we made sure GenAI did not replace our understanding (TODO):** for example, walking through each module before the interview; the parts each of you can explain line by line.
+**How we made sure GenAI did not replace our understanding:** we designed the project, the experiments and the questions ourselves, checked every result against real racing, and walked through each module together before the interviews.
